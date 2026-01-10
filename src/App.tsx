@@ -1,0 +1,96 @@
+import { useState, useEffect } from 'react';
+import { Player } from './types/chess';
+import { createOrGetPlayer } from './lib/gameService';
+import GameLobby from './components/GameLobby';
+import GameView from './components/GameView';
+import { Crown } from 'lucide-react';
+
+function App() {
+  const [player, setPlayer] = useState<Player | null>(null);
+  const [username, setUsername] = useState('');
+  const [currentGameId, setCurrentGameId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('chess_username');
+    if (savedUsername) {
+      handleLogin(savedUsername);
+    }
+  }, []);
+
+  const handleLogin = async (name: string) => {
+    setLoading(true);
+    try {
+      const playerData = await createOrGetPlayer(name);
+      setPlayer(playerData);
+      localStorage.setItem('chess_username', name);
+    } catch (error) {
+      console.error('Error creating player:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username.trim()) {
+      handleLogin(username.trim());
+    }
+  };
+
+  const handleGameStart = (gameId: string) => {
+    setCurrentGameId(gameId);
+  };
+
+  const handleBackToLobby = () => {
+    setCurrentGameId(null);
+  };
+
+  if (!player) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <Crown className="w-16 h-16 text-yellow-400" />
+            </div>
+            <h1 className="text-5xl font-bold text-white mb-2">Chess Online</h1>
+            <p className="text-slate-300">Play chess with anyone, anywhere</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-2xl p-8">
+            <form onSubmit={handleSubmit}>
+              <label className="block text-slate-700 text-sm font-semibold mb-2">
+                Choose your username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 transition-colors mb-4"
+                disabled={loading}
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={loading || !username.trim()}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+              >
+                {loading ? 'Connecting...' : 'Start Playing'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentGameId) {
+    return <GameView gameId={currentGameId} player={player} onBackToLobby={handleBackToLobby} />;
+  }
+
+  return <GameLobby player={player} onGameStart={handleGameStart} />;
+}
+
+export default App;
