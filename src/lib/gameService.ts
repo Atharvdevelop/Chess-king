@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Game, Player, Move, PieceColor, Position } from '../types/chess';
+import { Game, Player, Move, PieceColor, Position, Challenge, ChallengeStatus } from '../types/chess';
 import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isKingInCheck } from './chessLogic';
 
 export async function createOrGetPlayer(username: string): Promise<Player> {
@@ -27,16 +27,13 @@ export async function createOrGetPlayer(username: string): Promise<Player> {
   return newPlayer;
 }
 
-export async function createGame(playerId: string): Promise<Game> {
-  const initialBoard = createInitialBoard();
-
+export async function createChallenge(challengerId: string, challengedId: string): Promise<Challenge> {
   const { data, error } = await supabase
-    .from('games')
+    .from('challenges')
     .insert({
-      white_player_id: playerId,
-      board_state: initialBoard,
-      current_turn: 'white',
-      status: 'waiting'
+      challenger_id: challengerId,
+      challenged_id: challengedId,
+      status: 'pending'
     })
     .select()
     .single();
@@ -45,30 +42,90 @@ export async function createGame(playerId: string): Promise<Game> {
   return data;
 }
 
-export async function getAvailableGames(): Promise<Game[]> {
+export async function getAvailablePlayers(currentPlayerId: string): Promise<Player[]> {
   const { data, error } = await supabase
-    .from('games')
+    .from('players')
     .select('*')
-    .eq('status', 'waiting')
-    .order('created_at', { ascending: false });
+    .neq('id', currentPlayerId)
+    .order('last_seen', { ascending: false });
 
   if (error) throw error;
   return data || [];
 }
 
-export async function joinGame(gameId: string, playerId: string): Promise<Game> {
+export async function getPendingChallenges(playerId: string): Promise<Challenge[]> {
   const { data, error } = await supabase
+    .from('challenges')
+    .select('*')
+    .eq('challenged_id', playerId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  const challenges = data || [];
+
+  for (const challenge of challenges) {
+    const { data: player } = await supabase
+      .from('players')
+      .select('username')
+      .eq('id', challenge.challenger_id)
+      .maybeSingle();
+    if (player) {
+      challenge.challenger_username = player.username;
+    }
+  }
+
+  return challenges;
+}
+
+export async function acceptChallenge(challengeId: string, playerId: string, challengerUsername: string, playerUsername: string): Promise<Challenge> {
+  const timeLimit = 600;
+  const initialBoard = createInitialBoard();
+
+  const { data: gameData, error: gameError } = await supabase
     .from('games')
-    .update({
+    .insert({
+      white_player_id: (await supabase
+        .from('challenges')
+        .select('challenger_id')
+        .eq('id', challengeId)
+        .single()).data.challenger_id,
       black_player_id: playerId,
-      status: 'active'
+      board_state: initialBoard,
+      current_turn: 'white',
+      status: 'active',
+      time_limit: timeLimit,
+      white_time_remaining: timeLimit,
+      black_time_remaining: timeLimit,
+      last_move_at: new Date().toISOString(),
+      white_player_username: challengerUsername,
+      black_player_username: playerUsername
     })
-    .eq('id', gameId)
+    .select()
+    .single();
+
+  if (gameError) throw gameError;
+
+  const { data, error } = await supabase
+    .from('challenges')
+    .update({
+      status: 'accepted',
+      game_id: gameData.id
+    })
+    .eq('id', challengeId)
     .select()
     .single();
 
   if (error) throw error;
   return data;
+}
+
+export async function rejectChallenge(challengeId: string): Promise<void> {
+  await supabase
+    .from('challenges')
+    .update({ status: 'rejected' })
+    .eq('id', challengeId);
 }
 
 export async function getGame(gameId: string): Promise<Game | null> {
@@ -116,6 +173,7 @@ export async function makeGameMove(
     .update({
       board_state: newBoard,
       current_turn: nextTurn,
+      last_move_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
     .eq('id', gameId);
@@ -149,6 +207,29 @@ export function subscribeToGame(
       },
       (payload) => {
         callback(payload.new as Game);
+      }
+    )
+    .subscribe();
+
+  return channel;
+}
+
+export function subscribeToChallenges(
+  playerId: string,
+  callback: () => void
+) {
+  const channel = supabase
+    .channel(`challenges:${playerId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'challenges',
+        filter: `challenged_id=eq.${playerId}`
+      },
+      () => {
+        callback();
       }
     )
     .subscribe();

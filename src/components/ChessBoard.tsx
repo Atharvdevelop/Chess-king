@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { BoardState, ChessPiece, PieceColor, Position } from '../types/chess';
-import { positionToKey, isValidMove, makeMove } from '../lib/chessLogic';
+import { positionToKey, isValidMove } from '../lib/chessLogic';
 
 interface ChessBoardProps {
   board: BoardState;
@@ -28,6 +28,8 @@ const pieceSymbols: Record<string, string> = {
 export default function ChessBoard({ board, currentTurn, playerColor, onMove, isActive }: ChessBoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
   const [validMoves, setValidMoves] = useState<Position[]>([]);
+  const [draggedPiece, setDraggedPiece] = useState<Position | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   const handleSquareClick = (row: number, col: number) => {
     if (!isActive || !playerColor || currentTurn !== playerColor) return;
@@ -54,6 +56,42 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
     } else if (piece && piece.color === playerColor) {
       setSelectedSquare(clickedPos);
       calculateValidMoves(clickedPos);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, row: number, col: number) => {
+    if (!isActive || !playerColor || currentTurn !== playerColor) {
+      e.preventDefault();
+      return;
+    }
+
+    const piece = board[positionToKey({ row, col })];
+    if (piece && piece.color === playerColor) {
+      setDraggedPiece({ row, col });
+      calculateValidMoves({ row, col });
+      e.dataTransfer.effectAllowed = 'move';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, toRow: number, toCol: number) => {
+    e.preventDefault();
+    if (draggedPiece) {
+      const isValidMoveAttempt = validMoves.some(
+        pos => pos.row === toRow && pos.col === toCol
+      );
+
+      if (isValidMoveAttempt) {
+        onMove(draggedPiece, { row: toRow, col: toCol });
+      }
+
+      setDraggedPiece(null);
+      setSelectedSquare(null);
+      setValidMoves([]);
     }
   };
 
@@ -102,12 +140,16 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
         </div>
         {playerColor && (
           <div className="text-xs text-gray-500 mt-1">
-            You are playing as {playerColor}
+            Playing as {playerColor}
           </div>
         )}
       </div>
 
-      <div className="inline-block bg-gray-800 p-4 rounded-lg shadow-2xl">
+      <div
+        ref={boardRef}
+        className="inline-block bg-gray-800 p-4 rounded-lg shadow-2xl"
+        onDragOver={handleDragOver}
+      >
         <div className="grid grid-cols-8 gap-0 border-2 border-gray-900">
           {Array.from({ length: 8 }, (_, row) =>
             Array.from({ length: 8 }, (_, col) => {
@@ -115,19 +157,26 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
               const isLight = (row + col) % 2 === 0;
               const isSelected = isSquareSelected(row, col);
               const isValidMove = isValidMoveSquare(row, col);
+              const isDragging = draggedPiece?.row === row && draggedPiece?.col === col;
 
               return (
                 <div
                   key={`${row}-${col}`}
                   onClick={() => handleSquareClick(row, col)}
+                  onDragStart={(e) => handleDragStart(e, row, col)}
+                  onDrop={(e) => handleDrop(e, row, col)}
+                  onDragOver={handleDragOver}
+                  draggable={!!piece && piece.color === playerColor && isActive}
                   className={`
                     w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center
                     text-5xl sm:text-6xl cursor-pointer relative
                     transition-all duration-150
                     ${isLight ? 'bg-amber-100' : 'bg-amber-700'}
                     ${isSelected ? 'ring-4 ring-blue-500 ring-inset' : ''}
-                    ${isValidMove ? 'ring-4 ring-green-400 ring-inset' : ''}
-                    ${!isActive || !playerColor || currentTurn !== playerColor ? 'cursor-not-allowed opacity-80' : 'hover:brightness-95'}
+                    ${isValidMove ? 'ring-4 ring-green-400 ring-inset bg-green-100' : ''}
+                    ${isDragging ? 'opacity-50' : ''}
+                    ${piece && piece.color === playerColor && isActive ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                    ${!isActive || !playerColor || currentTurn !== playerColor ? 'opacity-75' : 'hover:brightness-95'}
                   `}
                 >
                   {col === 0 && (
@@ -142,14 +191,14 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
                       {files[col]}
                     </div>
                   )}
-                  <span className={`select-none ${piece?.color === 'white' ? 'drop-shadow-md' : ''}`}>
+                  <span className={`select-none ${piece?.color === 'white' ? 'drop-shadow-md' : ''} ${isDragging ? 'opacity-30' : ''}`}>
                     {getPieceSymbol(piece)}
                   </span>
                   {isValidMove && !piece && (
-                    <div className="absolute w-4 h-4 bg-green-500 rounded-full opacity-50"></div>
+                    <div className="absolute w-4 h-4 bg-green-500 rounded-full"></div>
                   )}
                   {isValidMove && piece && (
-                    <div className="absolute inset-0 border-4 border-red-500 opacity-50 pointer-events-none"></div>
+                    <div className="absolute inset-0 border-4 border-red-500 pointer-events-none"></div>
                   )}
                 </div>
               );

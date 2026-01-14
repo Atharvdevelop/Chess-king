@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Game, Player, PieceColor, Position } from '../types/chess';
 import { getGame, makeGameMove, subscribeToGame, getMoves } from '../lib/gameService';
 import ChessBoard from './ChessBoard';
+import Timer from './Timer';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
 
 interface GameViewProps {
@@ -15,6 +16,10 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const [playerColor, setPlayerColor] = useState<PieceColor | null>(null);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [whiteTime, setWhiteTime] = useState(600);
+  const [blackTime, setBlackTime] = useState(600);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadGame();
@@ -22,11 +27,47 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
     const channel = subscribeToGame(gameId, (updatedGame) => {
       setGame(updatedGame);
+      setWhiteTime(updatedGame.white_time_remaining);
+      setBlackTime(updatedGame.black_time_remaining);
       loadMoves();
     });
 
+    const refreshInterval = setInterval(() => {
+      loadGame();
+    }, 5000);
+
+    const timerInterval = setInterval(() => {
+      setGame((prevGame) => {
+        if (!prevGame || prevGame.status !== 'active') return prevGame;
+
+        const timeSinceLastMove =
+          (new Date().getTime() - new Date(prevGame.last_move_at).getTime()) / 1000;
+
+        if (prevGame.current_turn === 'white') {
+          const newWhiteTime = Math.max(
+            0,
+            prevGame.white_time_remaining - timeSinceLastMove
+          );
+          setWhiteTime(newWhiteTime);
+          return { ...prevGame, white_time_remaining: newWhiteTime };
+        } else {
+          const newBlackTime = Math.max(
+            0,
+            prevGame.black_time_remaining - timeSinceLastMove
+          );
+          setBlackTime(newBlackTime);
+          return { ...prevGame, black_time_remaining: newBlackTime };
+        }
+      });
+    }, 100);
+
+    refreshIntervalRef.current = refreshInterval;
+    timerIntervalRef.current = timerInterval;
+
     return () => {
       channel.unsubscribe();
+      clearInterval(refreshInterval);
+      clearInterval(timerInterval);
     };
   }, [gameId]);
 
@@ -34,6 +75,9 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     const gameData = await getGame(gameId);
     if (gameData) {
       setGame(gameData);
+      setWhiteTime(gameData.white_time_remaining);
+      setBlackTime(gameData.black_time_remaining);
+
       if (gameData.white_player_id === player.id) {
         setPlayerColor('white');
       } else if (gameData.black_player_id === player.id) {
@@ -44,7 +88,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
   const loadMoves = async () => {
     const moves = await getMoves(gameId);
-    const history = moves.map(m =>
+    const history = moves.map((m) =>
       `${m.move_number}. ${m.from_position}-${m.to_position}${m.is_check ? '+' : ''}`
     );
     setMoveHistory(history);
@@ -75,6 +119,10 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     );
   }
 
+  const opponentUsername = game.current_turn === 'white'
+    ? game.white_player_username
+    : game.black_player_username;
+
   const isWaiting = game.status === 'waiting';
 
   return (
@@ -83,7 +131,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={onBackToLobby}
-            className="flex items-center gap-2 text-white hover:text-slate-300 transition-colors"
+            className="flex items-center gap-2 text-white hover:text-slate-300 transition-colors font-semibold"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Lobby
@@ -92,7 +140,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
           {isWaiting && (
             <button
               onClick={copyGameLink}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
             >
               {copied ? (
                 <>
@@ -109,8 +157,25 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
           )}
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_auto] gap-8 items-start">
+        <div className="grid lg:grid-cols-[1fr_320px] gap-8 items-start">
           <div className="bg-white rounded-2xl shadow-2xl p-8">
+            {!isWaiting && game.status === 'active' && (
+              <div className="mb-6 grid grid-cols-2 gap-4">
+                <Timer
+                  timeRemaining={blackTime}
+                  isActive={game.current_turn === 'black'}
+                  color="black"
+                  playerUsername={game.black_player_username}
+                />
+                <Timer
+                  timeRemaining={whiteTime}
+                  isActive={game.current_turn === 'white'}
+                  color="white"
+                  playerUsername={game.white_player_username}
+                />
+              </div>
+            )}
+
             <ChessBoard
               board={game.board_state}
               currentTurn={game.current_turn}
@@ -129,32 +194,49 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
             )}
           </div>
 
-          <div className="bg-white rounded-2xl shadow-2xl p-6 lg:w-80">
-            <h3 className="text-xl font-bold text-slate-800 mb-4">Move History</h3>
-            <div className="space-y-1 max-h-96 overflow-y-auto">
-              {moveHistory.length === 0 ? (
-                <p className="text-slate-500 text-sm">No moves yet</p>
-              ) : (
-                moveHistory.map((move, idx) => (
-                  <div
-                    key={idx}
-                    className="text-sm font-mono bg-slate-50 px-3 py-2 rounded"
-                  >
-                    {move}
-                  </div>
-                ))
-              )}
-            </div>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 h-fit sticky top-8">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">Game Info</h3>
 
-            <div className="mt-6 pt-6 border-t border-slate-200">
-              <h4 className="font-semibold text-slate-800 mb-2">Game Info</h4>
-              <div className="text-sm space-y-1 text-slate-600">
-                <p>Game ID: <span className="font-mono text-xs">{gameId.slice(0, 12)}...</span></p>
-                <p>Status: <span className="font-semibold">{game.status}</span></p>
-                {playerColor && (
-                  <p>Your Color: <span className="font-semibold capitalize">{playerColor}</span></p>
+            {game.status === 'active' && (
+              <div className="mb-4 pb-4 border-b border-slate-200">
+                <p className="text-sm font-semibold text-slate-600 mb-2">Players</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-700">{game.white_player_username}</span>
+                    <span className={`text-xs px-2 py-1 rounded ${playerColor === 'white' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {playerColor === 'white' ? 'You' : 'Opponent'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-700">{game.black_player_username}</span>
+                    <span className={`text-xs px-2 py-1 rounded ${playerColor === 'black' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {playerColor === 'black' ? 'You' : 'Opponent'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-slate-600 mb-2">Move History</p>
+              <div className="space-y-1 max-h-96 overflow-y-auto">
+                {moveHistory.length === 0 ? (
+                  <p className="text-slate-500 text-sm">No moves yet</p>
+                ) : (
+                  moveHistory.map((move, idx) => (
+                    <div key={idx} className="text-sm font-mono bg-slate-50 px-3 py-2 rounded">
+                      {move}
+                    </div>
+                  ))
                 )}
               </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200">
+              <p className="text-xs font-semibold text-slate-600 mb-2">Status</p>
+              <p className="text-sm font-semibold text-slate-700 capitalize">
+                {game.status === 'active' ? 'In Progress' : 'Waiting'}
+              </p>
             </div>
           </div>
         </div>

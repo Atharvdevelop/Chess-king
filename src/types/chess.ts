@@ -1,6 +1,7 @@
 export type PieceType = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king';
 export type PieceColor = 'white' | 'black';
 export type GameStatus = 'waiting' | 'active' | 'completed' | 'abandoned';
+export type ChallengeStatus = 'pending' | 'accepted' | 'rejected';
 
 export interface ChessPiece {
   type: PieceType;
@@ -33,6 +34,12 @@ export interface Game {
   winner: PieceColor | 'draw' | null;
   created_at: string;
   updated_at: string;
+  time_limit: number;
+  white_time_remaining: number;
+  black_time_remaining: number;
+  last_move_at: string;
+  white_player_username?: string;
+  black_player_username?: string;
 }
 
 export interface Move {
@@ -48,4 +55,15 @@ export interface Move {
   is_check: boolean;
   is_checkmate: boolean;
   created_at: string;
+}
+
+export interface Challenge {
+  id: string;
+  challenger_id: string;
+  challenged_id: string;
+  status: ChallengeStatus;
+  game_id: string | null;
+  created_at: string;
+  updated_at: string;
+  challenger_username?: string;
 }
