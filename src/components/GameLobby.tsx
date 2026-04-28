@@ -7,9 +7,9 @@ import {
   acceptChallenge,
   rejectChallenge,
   subscribeToChallenges
-} from '../lib/gameService';
+} from '../lib/gamesService'; // Ensure this matches your file name
 import { supabase } from '../lib/supabase';
-import { Users, MessageCircle, Check, X, Loader } from 'lucide-react';
+import { Users, MessageCircle, Check, X } from 'lucide-react';
 
 interface GameLobbyProps {
   player: Player;
@@ -26,20 +26,32 @@ export default function GameLobby({ player, onGameStart }: GameLobbyProps) {
     loadAvailablePlayers();
     loadPendingChallenges();
 
+    // REALTIME SYNC: This is the critical fix
+    const channel = subscribeToChallenges(player.id, (payload) => {
+      console.log('Realtime update received:', payload);
+
+      // If any challenge involving this player is 'accepted', move to game view
+      if (payload?.new && payload.new.status === 'accepted' && payload.new.game_id) {
+        console.log('Challenge accepted! Starting game:', payload.new.game_id);
+        onGameStart(payload.new.game_id);
+      } else {
+        // Otherwise, just refresh the UI lists
+        loadAvailablePlayers();
+        loadPendingChallenges();
+      }
+    });
+
+    // We keep a fallback interval just in case of network blips
     const refreshInterval = setInterval(() => {
       loadAvailablePlayers();
       loadPendingChallenges();
-    }, 5000);
-
-    const channel = subscribeToChallenges(player.id, () => {
-      loadPendingChallenges();
-    });
+    }, 10000); 
 
     return () => {
       clearInterval(refreshInterval);
       supabase.removeChannel(channel);
     };
-  }, [player.id]);
+  }, [player.id, onGameStart]);
 
   const loadAvailablePlayers = async () => {
     try {
@@ -63,6 +75,7 @@ export default function GameLobby({ player, onGameStart }: GameLobbyProps) {
     setLoading(true);
     try {
       await createChallenge(player.id, targetPlayerId);
+      // We don't redirect here; we wait for the subscription to catch the 'accepted' status
       await loadAvailablePlayers();
     } catch (error) {
       console.error('Error sending challenge:', error);
@@ -132,7 +145,7 @@ export default function GameLobby({ player, onGameStart }: GameLobbyProps) {
               <Users className="w-4 h-4 inline mr-2" />
               Challenges
               {pendingChallenges.length > 0 && (
-                <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
                   {pendingChallenges.length}
                 </span>
               )}
@@ -143,7 +156,6 @@ export default function GameLobby({ player, onGameStart }: GameLobbyProps) {
             {selectedTab === 'challenge' ? (
               <div>
                 <h2 className="text-2xl font-bold text-slate-800 mb-4">Available Players</h2>
-
                 {availablePlayers.length === 0 ? (
                   <div className="text-center py-12 text-slate-500">
                     <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -176,7 +188,6 @@ export default function GameLobby({ player, onGameStart }: GameLobbyProps) {
             ) : (
               <div>
                 <h2 className="text-2xl font-bold text-slate-800 mb-4">Challenge Requests</h2>
-
                 {pendingChallenges.length === 0 ? (
                   <div className="text-center py-12 text-slate-500">
                     <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-30" />
