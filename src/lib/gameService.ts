@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Game, Player, Move, PieceColor, Position, Challenge, ChallengeStatus } from '../types/chess';
+import { Game, Player, Move, PieceColor, Position, Challenge } from '../types/chess';
 import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isKingInCheck } from './chessLogic';
 
 export async function createOrGetPlayer(username: string): Promise<Player> {
@@ -83,14 +83,19 @@ export async function acceptChallenge(challengeId: string, playerId: string, cha
   const timeLimit = 600;
   const initialBoard = createInitialBoard();
 
+  // Get the challenger ID first
+  const { data: challengeData } = await supabase
+    .from('challenges')
+    .select('challenger_id')
+    .eq('id', challengeId)
+    .single();
+
+  if (!challengeData) throw new Error("Challenge not found");
+
   const { data: gameData, error: gameError } = await supabase
     .from('games')
     .insert({
-      white_player_id: (await supabase
-        .from('challenges')
-        .select('challenger_id')
-        .eq('id', challengeId)
-        .single()).data.challenger_id,
+      white_player_id: challengeData.challenger_id,
       black_player_id: playerId,
       board_state: initialBoard,
       current_turn: 'white',
@@ -214,12 +219,17 @@ export function subscribeToGame(
   return channel;
 }
 
+/**
+ * UPDATED: Listens for challenges where the player is EITHER 
+ * the challenger or the challenged party.
+ */
 export function subscribeToChallenges(
   playerId: string,
-  callback: () => void
+  callback: (payload: any) => void
 ) {
   const channel = supabase
-    .channel(`challenges:${playerId}`)
+    .channel(`realtime:challenges:${playerId}`)
+    // Listen for incoming challenges
     .on(
       'postgres_changes',
       {
@@ -228,9 +238,18 @@ export function subscribeToChallenges(
         table: 'challenges',
         filter: `challenged_id=eq.${playerId}`
       },
-      () => {
-        callback();
-      }
+      (payload) => callback(payload)
+    )
+    // Listen for outgoing challenges (to catch when they are accepted)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'challenges',
+        filter: `challenger_id=eq.${playerId}`
+      },
+      (payload) => callback(payload)
     )
     .subscribe();
 
