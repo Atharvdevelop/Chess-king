@@ -7,7 +7,7 @@ import {
   acceptChallenge,
   rejectChallenge,
   subscribeToChallenges
-} from '../lib/gamesService'; // Ensure this matches your file name
+} from '../lib/gamesService';
 import { supabase } from '../lib/supabase';
 import { Users, MessageCircle, Check, X } from 'lucide-react';
 
@@ -26,26 +26,28 @@ export default function GameLobby({ player, onGameStart }: GameLobbyProps) {
     loadAvailablePlayers();
     loadPendingChallenges();
 
-    // REALTIME SYNC: This is the critical fix
+    // REALTIME SYNC: The Challenger's "Ear"
     const channel = subscribeToChallenges(player.id, (payload) => {
-      console.log('Realtime update received:', payload);
+      console.log('📡 REALTIME SIGNAL:', payload.eventType, payload.new);
 
-      // If any challenge involving this player is 'accepted', move to game view
-      if (payload?.new && payload.new.status === 'accepted' && payload.new.game_id) {
-        console.log('Challenge accepted! Starting game:', payload.new.game_id);
-        onGameStart(payload.new.game_id);
+      // Check specifically for an UPDATE where status becomes 'accepted'
+      const isAccepted = payload.new?.status === 'accepted';
+      const gameId = payload.new?.game_id;
+
+      if (isAccepted && gameId) {
+        console.log('🚀 MATCH FOUND! Diverting to Game:', gameId);
+        onGameStart(gameId);
       } else {
-        // Otherwise, just refresh the UI lists
+        // Just a normal update (new challenge, etc.), refresh the lists
         loadAvailablePlayers();
         loadPendingChallenges();
       }
     });
 
-    // We keep a fallback interval just in case of network blips
     const refreshInterval = setInterval(() => {
       loadAvailablePlayers();
       loadPendingChallenges();
-    }, 10000); 
+    }, 15000); 
 
     return () => {
       clearInterval(refreshInterval);
@@ -75,7 +77,6 @@ export default function GameLobby({ player, onGameStart }: GameLobbyProps) {
     setLoading(true);
     try {
       await createChallenge(player.id, targetPlayerId);
-      // We don't redirect here; we wait for the subscription to catch the 'accepted' status
       await loadAvailablePlayers();
     } catch (error) {
       console.error('Error sending challenge:', error);
