@@ -83,7 +83,6 @@ export async function acceptChallenge(challengeId: string, playerId: string, cha
   const timeLimit = 600;
   const initialBoard = createInitialBoard();
 
-  // Get the challenger ID first
   const { data: challengeData } = await supabase
     .from('challenges')
     .select('challenger_id')
@@ -220,36 +219,32 @@ export function subscribeToGame(
 }
 
 /**
- * UPDATED: Listens for challenges where the player is EITHER 
- * the challenger or the challenged party.
+ * HARDENED SUBSCRIPTION: 
+ * Listens to all challenge updates and filters them in the code.
+ * This is much more reliable for multiplayer sync.
  */
 export function subscribeToChallenges(
   playerId: string,
   callback: (payload: any) => void
 ) {
   const channel = supabase
-    .channel(`realtime:challenges:${playerId}`)
-    // Listen for incoming challenges
+    .channel(`lobby-sync-${playerId}`)
     .on(
       'postgres_changes',
       {
-        event: '*',
+        event: '*', 
         schema: 'public',
-        table: 'challenges',
-        filter: `challenged_id=eq.${playerId}`
+        table: 'challenges'
       },
-      (payload) => callback(payload)
-    )
-    // Listen for outgoing challenges (to catch when they are accepted)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'challenges',
-        filter: `challenger_id=eq.${playerId}`
-      },
-      (payload) => callback(payload)
+      (payload) => {
+        // Only trigger the callback if this player is involved in the challenge
+        const isChallenger = payload.new?.challenger_id === playerId;
+        const isChallenged = payload.new?.challenged_id === playerId;
+        
+        if (isChallenger || isChallenged) {
+          callback(payload);
+        }
+      }
     )
     .subscribe();
 
