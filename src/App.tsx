@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Player } from './types/chess';
-import { createOrGetPlayer, updatePlayerStatus } from './lib/gamesService'; // Updated to plural
+import { createOrGetPlayer, updatePlayerStatus } from './lib/gameService';// Updated to plural
 import GameLobby from './components/GameLobby';
 import GameView from './components/GameView';
 import { Crown } from 'lucide-react';
