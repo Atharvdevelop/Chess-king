@@ -274,3 +274,11 @@ export async function getMoves(gameId: string): Promise<Move[]> {
   if (error) throw error;
   return data || [];
 }
+
+export async function endGameOnTimeout(gameId: string, lostColor: PieceColor): Promise<void> {
+  const winner: PieceColor = lostColor === 'white' ? 'black' : 'white';
+  await supabase
+    .from('games')
+    .update({ status: 'finished', winner })
+    .eq('id', gameId);
+}

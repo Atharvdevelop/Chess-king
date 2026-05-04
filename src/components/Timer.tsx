@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Clock } from 'lucide-react';
 
 interface TimerProps {
@@ -5,9 +6,16 @@ interface TimerProps {
   isActive: boolean;
   color: 'white' | 'black';
   playerUsername?: string;
+  onTimeUp?: () => void;
 }
 
-export default function Timer({ timeRemaining, isActive, color, playerUsername }: TimerProps) {
+export default function Timer({ timeRemaining, isActive, color, playerUsername, onTimeUp }: TimerProps) {
+  useEffect(() => {
+    if (timeRemaining <= 0 && isActive) {
+      onTimeUp?.();
+    }
+  }, [timeRemaining, isActive, onTimeUp]);
+
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
 

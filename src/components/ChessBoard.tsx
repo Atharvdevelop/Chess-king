@@ -150,9 +150,13 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
         className="inline-block bg-gray-800 p-4 rounded-lg shadow-2xl"
         onDragOver={handleDragOver}
       >
-        <div className="grid grid-cols-8 gap-0 border-2 border-gray-900">
-          {Array.from({ length: 8 }, (_, row) =>
-            Array.from({ length: 8 }, (_, col) => {
+        <div className="grid grid-cols-8 gap-0 border-2 border-gray-900 rounded-[2px] overflow-hidden">
+          {Array.from({ length: 8 }, (_, vRow) =>
+            Array.from({ length: 8 }, (_, vCol) => {
+              const isBlack = playerColor === 'black';
+              const row = isBlack ? 7 - vRow : vRow;
+              const col = isBlack ? 7 - vCol : vCol;
+
               const piece = board[positionToKey({ row, col })];
               const isLight = (row + col) % 2 === 0;
               const isSelected = isSquareSelected(row, col);
@@ -171,23 +175,23 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
                     w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center
                     text-5xl sm:text-6xl cursor-pointer relative
                     transition-all duration-150
-                    ${isLight ? 'bg-amber-100' : 'bg-amber-700'}
-                    ${isSelected ? 'ring-4 ring-blue-500 ring-inset' : ''}
-                    ${isValidMove ? 'ring-4 ring-green-400 ring-inset bg-green-100' : ''}
                     ${isDragging ? 'opacity-50' : ''}
                     ${piece && piece.color === playerColor && isActive ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
                     ${!isActive || !playerColor || currentTurn !== playerColor ? 'opacity-75' : 'hover:brightness-95'}
                   `}
+                  style={{
+                    backgroundColor: isSelected ? 'rgba(255, 255, 0, 0.5)' : isLight ? '#dee3e6' : '#8ca2ad'
+                  }}
                 >
-                  {col === 0 && (
+                  {vCol === 0 && (
                     <div className="absolute left-1 top-1 text-xs font-semibold"
-                         style={{ color: isLight ? '#92400e' : '#fef3c7' }}>
+                         style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
                       {ranks[row]}
                     </div>
                   )}
-                  {row === 7 && (
+                  {vRow === 7 && (
                     <div className="absolute right-1 bottom-1 text-xs font-semibold"
-                         style={{ color: isLight ? '#92400e' : '#fef3c7' }}>
+                         style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
                       {files[col]}
                     </div>
                   )}

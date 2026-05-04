@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Game, Player, PieceColor, Position } from '../types/chess';
-import { getGame, makeGameMove, subscribeToGame, getMoves } from '../lib/gameService';
+import { getGame, makeGameMove, subscribeToGame, getMoves, endGameOnTimeout } from '../lib/gameService';
 import ChessBoard from './ChessBoard';
 import Timer from './Timer';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
@@ -105,6 +105,11 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     }
   };
 
+  const handleTimeUp = async (lostColor: PieceColor) => {
+    if (!game || game.status !== 'active') return;
+    await endGameOnTimeout(gameId, lostColor);
+  };
+
   const copyGameLink = () => {
     const link = window.location.href;
     navigator.clipboard.writeText(link);
@@ -163,12 +168,14 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
                   isActive={game.current_turn === 'black'}
                   color="black"
                   playerUsername={game.black_player_username}
+                  onTimeUp={() => handleTimeUp('black')}
                 />
                 <Timer
                   timeRemaining={whiteTime}
                   isActive={game.current_turn === 'white'}
                   color="white"
                   playerUsername={game.white_player_username}
+                  onTimeUp={() => handleTimeUp('white')}
                 />
               </div>
             )}
