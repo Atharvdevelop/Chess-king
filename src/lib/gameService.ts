@@ -251,7 +251,8 @@ export async function makeGameMove(
       last_move_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
-    .eq('id', gameId);
+    .eq('id', gameId)
+    .eq('current_turn', currentGame.current_turn);
 }
 
 async function getNextMoveNumber(gameId: string): Promise<number> {
