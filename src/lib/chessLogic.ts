@@ -67,7 +67,7 @@ export function isValidMove(
     case 'queen':
       return isValidQueenMove(board, from, to);
     case 'king':
-      return isValidKingMove(dx, dy);
+      return isValidKingMove(board, from, to, piece.color);
     default:
       return false;
   }
@@ -120,8 +120,32 @@ function isValidQueenMove(board: BoardState, from: Position, to: Position): bool
   return isValidRookMove(board, from, to) || isValidBishopMove(board, from, to);
 }
 
-function isValidKingMove(dx: number, dy: number): boolean {
-  return Math.abs(dx) <= 1 && Math.abs(dy) <= 1;
+function isValidKingMove(board: BoardState, from: Position, to: Position, color: PieceColor): boolean {
+  const dx = to.col - from.col;
+  const dy = to.row - from.row;
+
+  if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) return true;
+
+  // Castling
+  if (Math.abs(dx) === 2 && dy === 0) {
+    const piece = getPieceAt(board, from);
+    if (piece && !piece.hasMoved) {
+      const isKingside = dx > 0;
+      const rookCol = isKingside ? 7 : 0;
+      const rookPos = { row: from.row, col: rookCol };
+      const rook = getPieceAt(board, rookPos);
+      if (rook && rook.type === 'rook' && rook.color === color && !rook.hasMoved) {
+        // Check path is clear
+        const step = Math.sign(dx);
+        for (let c = from.col + step; c !== rookCol; c += step) {
+          if (getPieceAt(board, { row: from.row, col: c })) return false;
+        }
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function isPathClear(board: BoardState, from: Position, to: Position): boolean {
@@ -147,8 +171,25 @@ export function makeMove(
   const piece = getPieceAt(board, from);
   const capturedPiece = getPieceAt(board, to);
 
-  newBoard[positionToKey(to)] = piece;
+  if (piece) {
+    const movedPiece = { ...piece, hasMoved: true };
+    newBoard[positionToKey(to)] = movedPiece;
+  }
   newBoard[positionToKey(from)] = null;
+
+  // Castling logic: move the rook as well
+  if (piece && piece.type === 'king' && Math.abs(to.col - from.col) === 2) {
+    const isKingside = to.col > from.col;
+    const rookFromCol = isKingside ? 7 : 0;
+    const rookToCol = isKingside ? to.col - 1 : to.col + 1;
+    const rookPos = { row: from.row, col: rookFromCol };
+    const rook = getPieceAt(board, rookPos);
+    if (rook) {
+      const movedRook = { ...rook, hasMoved: true };
+      newBoard[positionToKey({ row: from.row, col: rookToCol })] = movedRook;
+      newBoard[positionToKey(rookPos)] = null;
+    }
+  }
 
   return { newBoard, capturedPiece };
 }

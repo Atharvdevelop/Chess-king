@@ -6,6 +6,7 @@ export type ChallengeStatus = 'pending' | 'accepted' | 'rejected';
 export interface ChessPiece {
   type: PieceType;
   color: PieceColor;
+  hasMoved?: boolean;
 }
 
 export interface Position {

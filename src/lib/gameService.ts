@@ -232,6 +232,24 @@ export async function makeGameMove(
   const nextTurn: PieceColor = currentGame.current_turn === 'white' ? 'black' : 'white';
   const isCheck = isKingInCheck(newBoard, nextTurn);
 
+  const { data, error } = await supabase
+    .from('games')
+    .update({
+      board_state: newBoard,
+      current_turn: nextTurn,
+      last_move_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', gameId)
+    .eq('current_turn', currentGame.current_turn)
+    .select();
+
+  if (error) throw error;
+  
+  if (!data || data.length === 0) {
+    throw new Error('Move rejected by atomic lock');
+  }
+
   await supabase.from('moves').insert({
     game_id: gameId,
     move_number: await getNextMoveNumber(gameId),
@@ -242,17 +260,6 @@ export async function makeGameMove(
     captured_piece: capturedPiece?.type || null,
     is_check: isCheck
   });
-
-  await supabase
-    .from('games')
-    .update({
-      board_state: newBoard,
-      current_turn: nextTurn,
-      last_move_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', gameId)
-    .eq('current_turn', currentGame.current_turn);
 }
 
 async function getNextMoveNumber(gameId: string): Promise<number> {
