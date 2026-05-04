@@ -101,7 +101,7 @@ export async function getPendingChallenges(playerId: string): Promise<Challenge[
   if (error) throw error;
   return data.map(c => ({
     ...c,
-    challenger_username: (c.challenger as any)?.username || 'Unknown'
+    challenger_username: (c.challenger as Record<string, unknown>)?.username || 'Unknown'
   })) || [];
 }
 
@@ -159,13 +159,14 @@ export async function rejectChallenge(challengeId: string): Promise<void> {
 
 // --- 4. REALTIME SUBSCRIPTIONS ---
 
-export function subscribeToChallenges(playerId: string, callback: (payload: any) => void) {
+export function subscribeToChallenges(playerId: string, callback: (payload: { new?: { challenger_id?: string, challenged_id?: string, status?: string, game_id?: string } }) => void) {
   return supabase
     .channel(`lobby-${playerId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'challenges' }, (payload) => {
+        const newData = payload.new as Record<string, unknown>;
         // Safety check with optional chaining ?.
-        if (payload.new?.challenger_id === playerId || payload.new?.challenged_id === playerId) {
-            callback(payload);
+        if (newData?.challenger_id === playerId || newData?.challenged_id === playerId) {
+            callback(payload as { new?: { challenger_id?: string, challenged_id?: string, status?: string, game_id?: string } });
         }
     })
     .subscribe();
@@ -182,8 +183,9 @@ export function subscribeToChallengeAccepted(
       schema: 'public', 
       table: 'challenges' 
     }, (payload) => {
-      if (payload.new?.status === 'accepted' && payload.new?.game_id && payload.new?.challenger_id === playerId) {
-        onAccepted(payload.new.game_id, 'Opponent');
+      const newData = payload.new as Record<string, unknown>;
+      if (newData?.status === 'accepted' && newData?.game_id && newData?.challenger_id === playerId) {
+        onAccepted(newData.game_id as string, 'Opponent');
       }
     })
     .subscribe();

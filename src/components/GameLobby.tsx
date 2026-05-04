@@ -24,7 +24,7 @@ export default function GameLobby({ player, onGameStart }: { player: Player, onG
   // Data States
   const [lobbyPlayers, setLobbyPlayers] = useState<Player[]>([]);
   const [members, setMembers] = useState<Player[]>([]);
-  const [activeMatches, setActiveMatches] = useState<any[]>([]);
+  const [activeMatches, setActiveMatches] = useState<{ game_id: string; white_player: string; black_player: string; status?: string }[]>([]);
   const [pendingChallenges, setPendingChallenges] = useState<Challenge[]>([]);
   
   // Notification State for the "Accepted" popup
@@ -47,6 +47,7 @@ export default function GameLobby({ player, onGameStart }: { player: Player, onG
 
   useEffect(() => {
     refreshData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainTab]);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function GameLobby({ player, onGameStart }: { player: Player, onG
       
       setTimeout(() => {
         // This triggers the App.tsx URL detector
-        window.location.href = `/game/${gameId}`;
+        onGameStart(gameId);
       }, 2000);
     });
 
@@ -79,6 +80,7 @@ export default function GameLobby({ player, onGameStart }: { player: Player, onG
       supabase.removeChannel(generalChannel);
       supabase.removeChannel(redirectChannel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.id]);
 
   const handleAccept = async (c: Challenge) => {
@@ -86,7 +88,7 @@ export default function GameLobby({ player, onGameStart }: { player: Player, onG
       const data = await acceptChallenge(c.id, player.id, c.challenger_username || 'Opponent', player.username);
       if (data.game_id) {
         // Transport the acceptor immediately
-        window.location.href = `/game/${data.game_id}`;
+        onGameStart(data.game_id);
       }
     } catch (err) {
       console.error("Accept error:", err);

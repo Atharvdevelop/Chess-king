@@ -69,6 +69,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       clearInterval(refreshInterval);
       clearInterval(timerInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
   const loadGame = async () => {
@@ -118,10 +119,6 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       </div>
     );
   }
-
-  const opponentUsername = game.current_turn === 'white'
-    ? game.white_player_username
-    : game.black_player_username;
 
   const isWaiting = game.status === 'waiting';
 

@@ -22,6 +22,7 @@ export interface Player {
   username: string;
   created_at: string;
   last_seen: string;
+  status?: string;
 }
 
 export interface Game {
