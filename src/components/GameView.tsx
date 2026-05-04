@@ -18,6 +18,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const [copied, setCopied] = useState(false);
   const [whiteTime, setWhiteTime] = useState(600);
   const [blackTime, setBlackTime] = useState(600);
+  const [isProcessing, setIsProcessing] = useState(false);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -96,12 +97,15 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   };
 
   const handleMove = async (from: Position, to: Position) => {
-    if (!game) return;
+    if (!game || isProcessing) return;
+    setIsProcessing(true);
 
     try {
       await makeGameMove(gameId, from, to, game);
     } catch (error) {
       console.error('Error making move:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
