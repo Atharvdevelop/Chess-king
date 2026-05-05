@@ -21,6 +21,21 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const [isMoving, setIsMoving] = useState(false);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Wall-clock ref: set to Date.now() whenever the active turn (or DB snapshot) changes.
+  const timerStartedAt = useRef<number>(Date.now());
+  // DB snapshot of each player's remaining time at the moment timerStartedAt was captured.
+  const whiteTimeSnapshot = useRef<number>(600);
+  const blackTimeSnapshot = useRef<number>(600);
+  // Which color was active when the snapshot was taken.
+  const activeColorSnapshot = useRef<PieceColor | null>(null);
+
+  // Reset the wall-clock snapshot whenever we receive a fresh DB state.
+  const resetTimerSnapshot = (g: Game) => {
+    timerStartedAt.current = Date.now();
+    whiteTimeSnapshot.current = g.white_time_remaining;
+    blackTimeSnapshot.current = g.black_time_remaining;
+    activeColorSnapshot.current = g.current_turn;
+  };
 
   useEffect(() => {
     loadGame();
@@ -28,6 +43,8 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
     const channel = subscribeToGame(gameId, (updatedGame) => {
       setGame(updatedGame);
+      // Re-anchor the wall-clock snapshot to the freshly received DB values.
+      resetTimerSnapshot(updatedGame);
       setWhiteTime(updatedGame.white_time_remaining);
       setBlackTime(updatedGame.black_time_remaining);
       loadMoves();
@@ -37,25 +54,20 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       loadGame();
     }, 5000);
 
+    // Tick at 100 ms – compute display time via wall-clock diff, not accumulation.
     const timerInterval = setInterval(() => {
       setGame((prevGame) => {
         if (!prevGame || prevGame.status !== 'active') return prevGame;
 
-        const timeSinceLastMove =
-          (new Date().getTime() - new Date(prevGame.last_move_at).getTime()) / 1000;
+        const elapsedSec = (Date.now() - timerStartedAt.current) / 1000;
 
-        if (prevGame.current_turn === 'white') {
-          const newWhiteTime = Math.max(
-            0,
-            prevGame.white_time_remaining - timeSinceLastMove
-          );
+        if (activeColorSnapshot.current === 'white') {
+          const newWhiteTime = Math.max(0, whiteTimeSnapshot.current - elapsedSec);
           setWhiteTime(newWhiteTime);
+          // Keep the game object's field in sync for timeout detection downstream.
           return { ...prevGame, white_time_remaining: newWhiteTime };
         } else {
-          const newBlackTime = Math.max(
-            0,
-            prevGame.black_time_remaining - timeSinceLastMove
-          );
+          const newBlackTime = Math.max(0, blackTimeSnapshot.current - elapsedSec);
           setBlackTime(newBlackTime);
           return { ...prevGame, black_time_remaining: newBlackTime };
         }
@@ -77,6 +89,8 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     const gameData = await getGame(gameId);
     if (gameData) {
       setGame(gameData);
+      // Re-anchor snapshot so the local timer stays in sync with the DB.
+      resetTimerSnapshot(gameData);
       setWhiteTime(gameData.white_time_remaining);
       setBlackTime(gameData.black_time_remaining);
 

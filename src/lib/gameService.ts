@@ -232,20 +232,42 @@ export async function makeGameMove(
   const nextTurn: PieceColor = currentGame.current_turn === 'white' ? 'black' : 'white';
   const isCheck = isKingInCheck(newBoard, nextTurn);
 
+  // Calculate how many seconds have elapsed since the last move was recorded in the DB.
+  // This elapsed time is deducted from the moving player's clock in the same atomic update,
+  // so the DB value is always authoritative and matches what the UI displays.
+  const elapsedSec =
+    (Date.now() - new Date(currentGame.last_move_at).getTime()) / 1000;
+
+  const timeUpdate =
+    currentGame.current_turn === 'white'
+      ? {
+          white_time_remaining: Math.max(
+            0,
+            currentGame.white_time_remaining - elapsedSec
+          ),
+        }
+      : {
+          black_time_remaining: Math.max(
+            0,
+            currentGame.black_time_remaining - elapsedSec
+          ),
+        };
+
   const { data, error } = await supabase
     .from('games')
     .update({
       board_state: newBoard,
       current_turn: nextTurn,
       last_move_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      ...timeUpdate,
     })
     .eq('id', gameId)
     .eq('current_turn', currentGame.current_turn)
     .select();
 
   if (error) throw error;
-  
+
   if (!data || data.length === 0) {
     throw new Error('Move rejected by atomic lock');
   }
@@ -258,7 +280,7 @@ export async function makeGameMove(
     to_position: positionToAlgebraic(to),
     piece: piece.type,
     captured_piece: capturedPiece?.type || null,
-    is_check: isCheck
+    is_check: isCheck,
   });
 }
 
