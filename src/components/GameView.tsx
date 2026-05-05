@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
-import { Game, Player, PieceColor, Position } from '../types/chess';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { Game, Player, PieceColor, Position, Move } from '../types/chess';
+import { createInitialBoard, makeMove, algebraicToPosition } from '../lib/chessLogic';
 import { getGame, makeGameMove, subscribeToGame, getMoves, endGameOnTimeout } from '../lib/gameService';
 import ChessBoard from './ChessBoard';
 import Timer from './Timer';
@@ -15,6 +16,9 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const [game, setGame] = useState<Game | null>(null);
   const [playerColor, setPlayerColor] = useState<PieceColor | null>(null);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
+  const [movesData, setMovesData] = useState<Move[]>([]);
+  const [currentViewIndex, setCurrentViewIndex] = useState<number>(-1);
+  const [showWinnerModal, setShowWinnerModal] = useState<boolean>(false);
   const [copied, setCopied] = useState(false);
   const [whiteTime, setWhiteTime] = useState(600);
   const [blackTime, setBlackTime] = useState(600);
@@ -104,11 +108,54 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
   const loadMoves = async () => {
     const moves = await getMoves(gameId);
+    setMovesData(moves);
     const history = moves.map((m) =>
-      `${m.move_number}. ${m.from_position}-${m.to_position}${m.is_check ? '+' : ''}`
+      `${m.move_number}. ${m.from_position}-${m.to_position}${m.is_check ? '+' : ''}${m.is_checkmate ? '#' : ''}`
     );
     setMoveHistory(history);
   };
+
+  useEffect(() => {
+    if (game?.status === 'finished') {
+      setShowWinnerModal(true);
+    }
+  }, [game?.status]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (game?.status !== 'finished' || movesData.length === 0) return;
+
+      if (e.key === 'ArrowLeft') {
+        setCurrentViewIndex(prev => {
+          if (prev === -1) return movesData.length - 2; // -1 is the very end, go back 1 move
+          return Math.max(0, prev - 1);
+        });
+      } else if (e.key === 'ArrowRight') {
+        setCurrentViewIndex(prev => {
+          if (prev === -1) return -1;
+          if (prev >= movesData.length - 1) return -1; // -1 represents the live/final state
+          return prev + 1;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [game?.status, movesData.length]);
+
+  const displayBoard = useMemo(() => {
+    if (currentViewIndex === -1 || movesData.length === 0) return game?.board_state;
+
+    let board = createInitialBoard();
+    // Replay moves up to currentViewIndex
+    for (let i = 0; i <= currentViewIndex; i++) {
+      const m = movesData[i];
+      const from = algebraicToPosition(m.from_position);
+      const to = algebraicToPosition(m.to_position);
+      const res = makeMove(board, from, to);
+      board = res.newBoard;
+    }
+    return board;
+  }, [game?.board_state, movesData, currentViewIndex]);
 
   const handleMove = async (from: Position, to: Position) => {
     if (!game || isMoving) return;
@@ -209,12 +256,24 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
             )}
 
             <ChessBoard
-              board={game.board_state}
+              board={displayBoard || game.board_state}
               currentTurn={game.current_turn}
               playerColor={playerColor}
               onMove={handleMove}
-              isActive={game.status === 'active'}
+              isActive={game.status === 'active' && currentViewIndex === -1}
             />
+
+            {game.status === 'finished' && (
+              <div className="mt-6">
+                <div className="bg-blue-900/40 text-blue-200 border border-blue-800 p-4 rounded-xl text-center">
+                  <p className="font-bold text-lg mb-1">Analysis Mode</p>
+                  <p className="text-sm">Use <kbd className="bg-slate-800 px-2 py-1 rounded text-white mx-1 border border-slate-600">←</kbd> and <kbd className="bg-slate-800 px-2 py-1 rounded text-white mx-1 border border-slate-600">→</kbd> arrow keys to navigate through the game.</p>
+                  {currentViewIndex !== -1 && (
+                    <p className="text-blue-300 mt-2 font-medium">Viewing Move {currentViewIndex + 1} of {movesData.length}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {isWaiting && (
               <div className="mt-6 text-center">
@@ -273,6 +332,36 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
           </div>
         </div>
       </div>
+
+      {/* Winner Modal */}
+      {showWinnerModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowWinnerModal(false)}>
+          <div 
+            className="bg-slate-800 rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center border border-slate-700 transform transition-all"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-3xl font-bold text-white mb-3">Game Over</h2>
+            <div className="text-xl text-blue-200 mb-8 font-medium">
+              {game.winner === 'draw' 
+                ? "It's a Draw!" 
+                : `${game.winner === 'white' ? game.white_player_username : game.black_player_username} wins by ${game.winner === 'white' ? 'Checkmate' : 'Checkmate'}!`}
+            </div>
+            
+            <button
+              onClick={() => setShowWinnerModal(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors w-full shadow-lg shadow-blue-900/20"
+            >
+              Analyze Game
+            </button>
+            <button
+              onClick={onBackToLobby}
+              className="mt-3 bg-transparent hover:bg-slate-700 text-slate-300 font-medium py-3 px-6 rounded-xl transition-colors w-full"
+            >
+              Return to Lobby
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
