@@ -127,14 +127,17 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
       if (e.key === 'ArrowLeft') {
         setCurrentViewIndex(prev => {
-          if (prev === -1) return movesData.length - 2; // -1 is the very end, go back 1 move
-          return Math.max(0, prev - 1);
+          // If viewing live (-1), treat it as the last move before stepping back
+          const currentIndex = prev === -1 ? movesData.length - 1 : prev;
+          return Math.max(0, currentIndex - 1);
         });
       } else if (e.key === 'ArrowRight') {
         setCurrentViewIndex(prev => {
-          if (prev === -1) return -1;
-          if (prev >= movesData.length - 1) return -1; // -1 represents the live/final state
-          return prev + 1;
+          // If already live (-1), stay there. Otherwise, step forward.
+          const currentIndex = prev === -1 ? movesData.length - 1 : prev;
+          const nextIndex = Math.min(movesData.length - 1, currentIndex + 1);
+          // Return to -1 (live view) when reaching the end
+          return nextIndex === movesData.length - 1 ? -1 : nextIndex;
         });
       }
     };
