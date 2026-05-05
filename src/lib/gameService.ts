@@ -224,6 +224,10 @@ export async function makeGameMove(
   const piece = currentGame.board_state[positionToKey(from)];
   if (!piece) throw new Error('No piece at source position');
 
+  // Guard: playerId must be a non-empty string — a missing or null player ID
+  // would cause the Postgres function to reject the move with a cryptic error.
+  if (!playerId) throw new Error('Player ID is required to make a move');
+
   // Compute the new board client-side (needed for optimistic UI rendering and
   // post-move game-end detection before the DB subscription fires).
   const { newBoard } = makeMove(currentGame.board_state, from, to);
