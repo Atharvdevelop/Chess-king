@@ -51,6 +51,7 @@ export interface Move {
   player_color: PieceColor;
   from_position: string;
   to_position: string;
+  notation: string;
   piece: string;
   captured_piece: string | null;
   promotion: string | null;

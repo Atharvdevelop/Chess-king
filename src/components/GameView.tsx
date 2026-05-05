@@ -110,7 +110,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     const moves = await getMoves(gameId);
     setMovesData(moves);
     const history = moves.map((m) =>
-      `${m.move_number}. ${m.from_position}-${m.to_position}${m.is_check ? '+' : ''}${m.is_checkmate ? '#' : ''}`
+      `${m.move_number}. ${m.notation || 'Move'}${m.is_check && !m.notation?.includes('+') && !m.notation?.includes('#') ? '+' : ''}${m.is_checkmate && !m.notation?.includes('#') ? '#' : ''}`
     );
     setMoveHistory(history);
   };
@@ -146,13 +146,24 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     if (currentViewIndex === -1 || movesData.length === 0) return game?.board_state;
 
     let board = createInitialBoard();
-    // Replay moves up to currentViewIndex
+    // Replay moves up to currentViewIndex with defensive programming
     for (let i = 0; i <= currentViewIndex; i++) {
       const m = movesData[i];
-      const from = algebraicToPosition(m.from_position);
-      const to = algebraicToPosition(m.to_position);
-      const res = makeMove(board, from, to);
-      board = res.newBoard;
+      
+      // CRITICAL: Defensive check to prevent the White Screen of Death
+      if (!m || !m.from_position || !m.to_position) {
+        console.warn('Skipping corrupted move data at index', i, m);
+        continue; // Skip corrupted data
+      }
+
+      try {
+        const from = algebraicToPosition(m.from_position);
+        const to = algebraicToPosition(m.to_position);
+        const res = makeMove(board, from, to);
+        board = res.newBoard;
+      } catch (err) {
+        console.warn('Failed to replay move at index', i, m, err);
+      }
     }
     return board;
   }, [game?.board_state, movesData, currentViewIndex]);
