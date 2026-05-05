@@ -142,7 +142,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [game?.status, movesData.length]);
 
-  const displayBoard = useMemo(() => {
+  const currentBoard = useMemo(() => {
     if (currentViewIndex === -1 || movesData.length === 0) return game?.board_state;
 
     let board = createInitialBoard();
@@ -151,7 +151,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       const m = movesData[i];
       
       // CRITICAL: Defensive check to prevent the White Screen of Death
-      if (!m || !m.from_position || !m.to_position) {
+      if (!m?.from_position || !m?.to_position) {
         console.warn('Skipping corrupted move data at index', i, m);
         continue; // Skip corrupted data
       }
@@ -267,7 +267,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
             )}
 
             <ChessBoard
-              board={displayBoard || game.board_state}
+              board={currentBoard || game.board_state}
               currentTurn={game.current_turn}
               playerColor={playerColor}
               onMove={handleMove}
@@ -325,11 +325,25 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
                 {moveHistory.length === 0 ? (
                   <p className="text-slate-500 text-sm">No moves yet</p>
                 ) : (
-                  moveHistory.map((move, idx) => (
-                    <div key={idx} className="text-sm font-mono bg-slate-50 px-3 py-2 rounded">
-                      {move}
-                    </div>
-                  ))
+                  moveHistory.map((move, idx) => {
+                    // currentViewIndex === -1 means we are viewing the latest/live state
+                    const isHighlighted = currentViewIndex === -1 
+                      ? idx === moveHistory.length - 1 
+                      : idx === currentViewIndex;
+
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`text-sm font-mono px-3 py-2 rounded transition-colors ${
+                          isHighlighted 
+                            ? 'bg-blue-100 border border-blue-300 text-blue-800 font-bold' 
+                            : 'bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        {move}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
