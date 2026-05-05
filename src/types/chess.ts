@@ -1,6 +1,6 @@
 export type PieceType = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king';
 export type PieceColor = 'white' | 'black';
-export type GameStatus = 'waiting' | 'active' | 'completed' | 'abandoned';
+export type GameStatus = 'waiting' | 'active' | 'finished' | 'abandoned';
 export type ChallengeStatus = 'pending' | 'accepted' | 'rejected';
 
 export interface ChessPiece {
