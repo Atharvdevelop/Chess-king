@@ -115,7 +115,17 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     setIsMoving(true);
 
     try {
-      await makeGameMove(gameId, player.id, from, to, game);
+      const newBoard = await makeGameMove(gameId, player.id, from, to, game);
+
+      // Optimistically apply the new board immediately so the piece stays on
+      // its destination square before the realtime subscription delivers the
+      // authoritative DB snapshot (which will be identical).
+      const nextTurn = game.current_turn === 'white' ? 'black' : 'white';
+      setGame((prev) =>
+        prev
+          ? { ...prev, board_state: newBoard, current_turn: nextTurn }
+          : prev
+      );
     } catch (error) {
       console.error('Error making move:', error);
     } finally {

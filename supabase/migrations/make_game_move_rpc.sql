@@ -86,10 +86,12 @@ BEGIN
   -- 8. Insert the move record (same transaction → both commit or both roll back).
   INSERT INTO moves (
     game_id, move_number, player_color,
-    from_position, to_position
+    from_position, to_position,
+    notation
   ) VALUES (
     p_game_id, v_move_number, v_player_color,
-    v_from_pos, v_to_pos
+    v_from_pos, v_to_pos,
+    p_move_notation
   );
 
   -- 9. Return the updated game row so callers can inspect the new state.

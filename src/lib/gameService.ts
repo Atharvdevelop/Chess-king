@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Game, Player, Move, PieceColor, Position, Challenge } from '../types/chess';
+import { Game, Player, Move, PieceColor, Position, Challenge, BoardState } from '../types/chess';
 import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isCheckmate, isStalemate } from './chessLogic';
 
 // --- 1. PRESENCE & STATE MANAGEMENT ---
@@ -220,7 +220,7 @@ export async function makeGameMove(
   from: Position,
   to: Position,
   currentGame: Game
-): Promise<void> {
+): Promise<BoardState> {
   const piece = currentGame.board_state[positionToKey(from)];
   if (!piece) throw new Error('No piece at source position');
 
@@ -260,6 +260,10 @@ export async function makeGameMove(
     // No legal moves but not in check → draw.
     await endGame(gameId, null);
   }
+
+  // Return the computed board so the caller can apply an optimistic UI update
+  // immediately, before the realtime subscription delivers the DB snapshot.
+  return newBoard;
 }
 
 export async function getMoves(gameId: string): Promise<Move[]> {
