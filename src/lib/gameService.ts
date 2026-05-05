@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { Game, Player, Move, PieceColor, Position, Challenge, BoardState } from '../types/chess';
-import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isCheckmate, isStalemate } from './chessLogic';
+import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isCheckmate, isStalemate, isKingInCheck } from './chessLogic';
 
 // --- 1. PRESENCE & STATE MANAGEMENT ---
 
@@ -230,11 +230,14 @@ export async function makeGameMove(
 
   // Compute the new board client-side (needed for optimistic UI rendering and
   // post-move game-end detection before the DB subscription fires).
-  const { newBoard } = makeMove(currentGame.board_state, from, to);
+  const { newBoard, capturedPiece } = makeMove(currentGame.board_state, from, to);
   const nextTurn: PieceColor = currentGame.current_turn === 'white' ? 'black' : 'white';
 
   // Build 'e2-e4' style notation from the two positions.
   const moveNotation = `${positionToAlgebraic(from)}-${positionToAlgebraic(to)}`;
+  
+  const isCheck = isCheckmate(newBoard, nextTurn) || isKingInCheck(newBoard, nextTurn);
+  const isCheckmateVal = isCheckmate(newBoard, nextTurn);
 
   // Single RPC call → UPDATE games + INSERT INTO moves in one transaction.
   const { error } = await supabase.rpc('make_game_move', {
@@ -242,6 +245,10 @@ export async function makeGameMove(
     p_player_id:     playerId,
     p_new_board:     newBoard,
     p_move_notation: moveNotation,
+    p_piece:         piece.type,
+    p_captured_piece: capturedPiece?.type || null,
+    p_is_check:      isCheck,
+    p_is_checkmate:  isCheckmateVal
   });
 
   if (error) {

@@ -7,7 +7,11 @@ CREATE OR REPLACE FUNCTION make_game_move(
   p_game_id       UUID,
   p_player_id     UUID,   -- used to verify it is this player's turn
   p_new_board     JSONB,  -- board state after the move (computed client-side)
-  p_move_notation TEXT    -- 'e2-e4' style; split into from/to inside the function
+  p_move_notation TEXT,   -- 'e2-e4' style; split into from/to inside the function
+  p_piece               TEXT,
+  p_captured_piece      TEXT,   -- nullable
+  p_is_check            BOOLEAN,
+  p_is_checkmate        BOOLEAN
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -86,12 +90,12 @@ BEGIN
   -- 8. Insert the move record (same transaction → both commit or both roll back).
   INSERT INTO moves (
     game_id, move_number, player_color,
-    from_position, to_position,
-    notation
+    from_position, to_position, notation,
+    piece, captured_piece, is_check, is_checkmate
   ) VALUES (
     p_game_id, v_move_number, v_player_color,
-    v_from_pos, v_to_pos,
-    p_move_notation
+    v_from_pos, v_to_pos, p_move_notation,
+    p_piece, p_captured_piece, p_is_check, p_is_checkmate
   );
 
   -- 9. Return the updated game row so callers can inspect the new state.
