@@ -22,25 +22,20 @@ export async function updateHeartbeat(playerId: string) {
 }
 
 export async function createOrGetPlayer(username: string): Promise<Player> {
-  const { data: existingPlayer } = await supabase
+  // Upsert on the unique `username` column so two simultaneous logins with the
+  // same name cannot both see "player not found" and race to insert.
+  // Existing rows get their status and last_seen refreshed; new rows are created.
+  const { data, error } = await supabase
     .from('players')
-    .select('*')
-    .eq('username', username)
-    .maybeSingle();
-
-  if (existingPlayer) {
-    await updatePlayerStatus(existingPlayer.id, 'online');
-    return existingPlayer;
-  }
-
-  const { data: newPlayer, error } = await supabase
-    .from('players')
-    .insert({ username, status: 'online' })
+    .upsert(
+      { username, status: 'online', last_seen: new Date().toISOString() },
+      { onConflict: 'username' }
+    )
     .select()
     .single();
 
   if (error) throw error;
-  return newPlayer;
+  return data;
 }
 
 // --- 2. PAGE DATA FETCHING (Lobby, Members, Playing) ---
@@ -232,67 +227,47 @@ export async function makeGameMove(
   const nextTurn: PieceColor = currentGame.current_turn === 'white' ? 'black' : 'white';
   const isCheck = isKingInCheck(newBoard, nextTurn);
 
-  // Calculate how many seconds have elapsed since the last move was recorded in the DB.
-  // This elapsed time is deducted from the moving player's clock in the same atomic update,
-  // so the DB value is always authoritative and matches what the UI displays.
+  // Elapsed time since the last recorded move — deducted from the moving player's clock.
   const elapsedSec =
     (Date.now() - new Date(currentGame.last_move_at).getTime()) / 1000;
 
-  const timeUpdate =
+  // Pre-compute both time values; the SQL function stores both columns every time
+  // so neither can drift out of sync with the other.
+  const newWhiteTime =
     currentGame.current_turn === 'white'
-      ? {
-          white_time_remaining: Math.max(
-            0,
-            currentGame.white_time_remaining - elapsedSec
-          ),
-        }
-      : {
-          black_time_remaining: Math.max(
-            0,
-            currentGame.black_time_remaining - elapsedSec
-          ),
-        };
+      ? Math.max(0, currentGame.white_time_remaining - elapsedSec)
+      : currentGame.white_time_remaining;
+  const newBlackTime =
+    currentGame.current_turn === 'black'
+      ? Math.max(0, currentGame.black_time_remaining - elapsedSec)
+      : currentGame.black_time_remaining;
 
-  const { data, error } = await supabase
-    .from('games')
-    .update({
-      board_state: newBoard,
-      current_turn: nextTurn,
-      last_move_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ...timeUpdate,
-    })
-    .eq('id', gameId)
-    .eq('current_turn', currentGame.current_turn)
-    .select();
-
-  if (error) throw error;
-
-  if (!data || data.length === 0) {
-    throw new Error('Move rejected by atomic lock');
-  }
-
-  await supabase.from('moves').insert({
-    game_id: gameId,
-    move_number: await getNextMoveNumber(gameId),
-    player_color: currentGame.current_turn,
-    from_position: positionToAlgebraic(from),
-    to_position: positionToAlgebraic(to),
-    piece: piece.type,
-    captured_piece: capturedPiece?.type || null,
-    is_check: isCheck,
+  // Single RPC call — the Postgres function (supabase/migrations/make_game_move_rpc.sql)
+  // runs the UPDATE games + INSERT INTO moves inside one transaction.
+  // The WHERE current_turn = p_expected_turn clause acts as the optimistic-concurrency
+  // lock: if the turn was already flipped by another client the function raises an
+  // exception and nothing is written.
+  const { error } = await supabase.rpc('make_game_move', {
+    p_game_id:              gameId,
+    p_expected_turn:        currentGame.current_turn,
+    p_next_turn:            nextTurn,
+    p_board_state:          newBoard,
+    p_white_time_remaining: newWhiteTime,
+    p_black_time_remaining: newBlackTime,
+    p_from_position:        positionToAlgebraic(from),
+    p_to_position:          positionToAlgebraic(to),
+    p_piece:                piece.type,
+    p_captured_piece:       capturedPiece?.type ?? null,
+    p_is_check:             isCheck,
   });
-}
 
-async function getNextMoveNumber(gameId: string): Promise<number> {
-  const { data } = await supabase
-    .from('moves')
-    .select('move_number')
-    .eq('game_id', gameId)
-    .order('move_number', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data ? data.move_number + 1 : 1;
+  if (error) {
+    // The SQL function raises 'move_rejected' when the turn lock fails.
+    if (error.message?.includes('move_rejected')) {
+      throw new Error('Move rejected by atomic lock');
+    }
+    throw error;
+  }
 }
 
 export async function getMoves(gameId: string): Promise<Move[]> {
