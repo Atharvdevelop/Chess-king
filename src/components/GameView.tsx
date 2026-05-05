@@ -115,7 +115,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     setIsMoving(true);
 
     try {
-      await makeGameMove(gameId, from, to, game);
+      await makeGameMove(gameId, player.id, from, to, game);
     } catch (error) {
       console.error('Error making move:', error);
     } finally {

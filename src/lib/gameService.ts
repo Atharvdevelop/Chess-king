@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { Game, Player, Move, PieceColor, Position, Challenge } from '../types/chess';
-import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isKingInCheck } from './chessLogic';
+import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isCheckmate, isStalemate } from './chessLogic';
 
 // --- 1. PRESENCE & STATE MANAGEMENT ---
 
@@ -216,6 +216,7 @@ export async function getGame(gameId: string): Promise<Game | null> {
 
 export async function makeGameMove(
   gameId: string,
+  playerId: string,
   from: Position,
   to: Position,
   currentGame: Game
@@ -223,50 +224,41 @@ export async function makeGameMove(
   const piece = currentGame.board_state[positionToKey(from)];
   if (!piece) throw new Error('No piece at source position');
 
-  const { newBoard, capturedPiece } = makeMove(currentGame.board_state, from, to);
+  // Compute the new board client-side (needed for optimistic UI rendering and
+  // post-move game-end detection before the DB subscription fires).
+  const { newBoard } = makeMove(currentGame.board_state, from, to);
   const nextTurn: PieceColor = currentGame.current_turn === 'white' ? 'black' : 'white';
-  const isCheck = isKingInCheck(newBoard, nextTurn);
 
-  // Elapsed time since the last recorded move — deducted from the moving player's clock.
-  const elapsedSec =
-    (Date.now() - new Date(currentGame.last_move_at).getTime()) / 1000;
+  // Build 'e2-e4' style notation from the two positions.
+  const moveNotation = `${positionToAlgebraic(from)}-${positionToAlgebraic(to)}`;
 
-  // Pre-compute both time values; the SQL function stores both columns every time
-  // so neither can drift out of sync with the other.
-  const newWhiteTime =
-    currentGame.current_turn === 'white'
-      ? Math.max(0, currentGame.white_time_remaining - elapsedSec)
-      : currentGame.white_time_remaining;
-  const newBlackTime =
-    currentGame.current_turn === 'black'
-      ? Math.max(0, currentGame.black_time_remaining - elapsedSec)
-      : currentGame.black_time_remaining;
-
-  // Single RPC call — the Postgres function (supabase/migrations/make_game_move_rpc.sql)
-  // runs the UPDATE games + INSERT INTO moves inside one transaction.
-  // The WHERE current_turn = p_expected_turn clause acts as the optimistic-concurrency
-  // lock: if the turn was already flipped by another client the function raises an
-  // exception and nothing is written.
+  // Single RPC call → UPDATE games + INSERT INTO moves in one transaction.
   const { error } = await supabase.rpc('make_game_move', {
-    p_game_id:              gameId,
-    p_expected_turn:        currentGame.current_turn,
-    p_next_turn:            nextTurn,
-    p_board_state:          newBoard,
-    p_white_time_remaining: newWhiteTime,
-    p_black_time_remaining: newBlackTime,
-    p_from_position:        positionToAlgebraic(from),
-    p_to_position:          positionToAlgebraic(to),
-    p_piece:                piece.type,
-    p_captured_piece:       capturedPiece?.type ?? null,
-    p_is_check:             isCheck,
+    p_game_id:       gameId,
+    p_player_id:     playerId,
+    p_new_board:     newBoard,
+    p_move_notation: moveNotation,
   });
 
   if (error) {
-    // The SQL function raises 'move_rejected' when the turn lock fails.
     if (error.message?.includes('move_rejected')) {
-      throw new Error('Move rejected by atomic lock');
+      throw new Error('Move rejected: not your turn');
+    }
+    if (error.message?.includes('game_not_found')) {
+      throw new Error('Game is no longer active');
     }
     throw error;
+  }
+
+  // --- Post-move game-end detection ---
+  // Check the board that will be facing the next player.
+  // isCheckmate / isStalemate use the full self-check-aware legal-move scan.
+  if (isCheckmate(newBoard, nextTurn)) {
+    // The player who just moved wins.
+    await endGame(gameId, currentGame.current_turn);
+  } else if (isStalemate(newBoard, nextTurn)) {
+    // No legal moves but not in check → draw.
+    await endGame(gameId, null);
   }
 }
 
@@ -280,10 +272,22 @@ export async function getMoves(gameId: string): Promise<Move[]> {
   return data || [];
 }
 
-export async function endGameOnTimeout(gameId: string, lostColor: PieceColor): Promise<void> {
-  const winner: PieceColor = lostColor === 'white' ? 'black' : 'white';
+// endGame: called after checkmate, stalemate, or timeout.
+// winner = null means draw (stalemate).
+export async function endGame(
+  gameId: string,
+  winner: PieceColor | null
+): Promise<void> {
   await supabase
     .from('games')
-    .update({ status: 'finished', winner })
+    .update({
+      status: 'finished',
+      winner: winner ?? 'draw',
+    })
     .eq('id', gameId);
+}
+
+export async function endGameOnTimeout(gameId: string, lostColor: PieceColor): Promise<void> {
+  const winner: PieceColor = lostColor === 'white' ? 'black' : 'white';
+  await endGame(gameId, winner);
 }
