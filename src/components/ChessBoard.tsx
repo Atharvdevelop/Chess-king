@@ -147,10 +147,10 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
 
       <div
         ref={boardRef}
-        className="inline-block bg-gray-800 p-4 rounded-lg shadow-2xl"
+        className="inline-flex justify-center bg-gray-800 p-2 sm:p-4 rounded-lg shadow-2xl"
         onDragOver={handleDragOver}
       >
-        <div className="grid grid-cols-8 gap-0 border-2 border-gray-900 rounded-[2px] overflow-hidden">
+        <div className="grid grid-cols-8 grid-rows-8 gap-0 border-2 border-gray-900 rounded-[2px] overflow-hidden w-[95vw] h-[95vw] lg:w-[600px] lg:h-[600px]">
           {Array.from({ length: 8 }, (_, vRow) =>
             Array.from({ length: 8 }, (_, vCol) => {
               const isBlack = playerColor === 'black';
@@ -172,8 +172,8 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
                   onDragOver={handleDragOver}
                   draggable={!!piece && piece.color === playerColor && isActive}
                   className={`
-                    w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center
-                    text-5xl sm:text-6xl cursor-pointer relative
+                    w-full h-full flex items-center justify-center
+                    text-[10vw] lg:text-[60px] cursor-pointer relative
                     transition-all duration-150
                     ${isDragging ? 'opacity-50' : ''}
                     ${piece && piece.color === playerColor && isActive ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}

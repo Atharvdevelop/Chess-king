@@ -242,10 +242,10 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
           )}
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_320px] gap-8 items-start">
-          <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="flex flex-col lg:flex-row items-center justify-center gap-4 p-2 lg:p-8 w-full">
+          <div className="bg-white rounded-2xl shadow-2xl p-2 sm:p-4 lg:p-8 w-full lg:w-auto overflow-hidden">
             {!isWaiting && game.status === 'active' && (
-              <div className="mb-6 grid grid-cols-2 gap-4">
+              <div className="mb-6 flex flex-row lg:flex-col gap-2 sm:gap-4 w-full">
                 <Timer
                   timeRemaining={blackTime}
                   isActive={game.current_turn === 'black'}
@@ -293,7 +293,7 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
             )}
           </div>
 
-          <div className="bg-white rounded-2xl shadow-2xl p-6 h-fit sticky top-8">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 h-fit sticky top-8 w-full lg:w-[320px] shrink-0">
             <h3 className="text-xl font-bold text-slate-800 mb-4">Game Info</h3>
 
             {game.status === 'active' && (
