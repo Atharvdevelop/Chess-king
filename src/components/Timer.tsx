@@ -17,7 +17,7 @@ export default function Timer({ timeRemaining, isActive, color, playerUsername, 
   }, [timeRemaining, isActive, onTimeUp]);
 
   const minutes = Math.floor(timeRemaining / 60);
-  const seconds = timeRemaining % 60;
+  const seconds = Math.floor(timeRemaining % 60);
 
   const formatTime = (time: number) => {
     return time < 10 ? `0${time}` : `${time}`;

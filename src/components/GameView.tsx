@@ -210,6 +210,25 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
   const isWaiting = game.status === 'waiting';
 
+  const timersContent = !isWaiting && game.status === 'active' ? (
+    <>
+      <Timer
+        timeRemaining={blackTime}
+        isActive={game.current_turn === 'black'}
+        color="black"
+        playerUsername={game.black_player_username}
+        onTimeUp={() => handleTimeUp('black')}
+      />
+      <Timer
+        timeRemaining={whiteTime}
+        isActive={game.current_turn === 'white'}
+        color="white"
+        playerUsername={game.white_player_username}
+        onTimeUp={() => handleTimeUp('white')}
+      />
+    </>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -244,22 +263,9 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
         <div className="flex flex-col lg:flex-row items-center justify-center gap-4 p-2 lg:p-8 w-full">
           <div className="bg-white rounded-2xl shadow-2xl p-2 sm:p-4 lg:p-8 w-full lg:w-auto overflow-hidden">
-            {!isWaiting && game.status === 'active' && (
-              <div className="mb-6 flex flex-row lg:flex-col gap-2 sm:gap-4 w-full">
-                <Timer
-                  timeRemaining={blackTime}
-                  isActive={game.current_turn === 'black'}
-                  color="black"
-                  playerUsername={game.black_player_username}
-                  onTimeUp={() => handleTimeUp('black')}
-                />
-                <Timer
-                  timeRemaining={whiteTime}
-                  isActive={game.current_turn === 'white'}
-                  color="white"
-                  playerUsername={game.white_player_username}
-                  onTimeUp={() => handleTimeUp('white')}
-                />
+            {timersContent && (
+              <div className="mb-6 flex flex-row gap-2 sm:gap-4 w-full lg:hidden">
+                {timersContent}
               </div>
             )}
 
@@ -294,6 +300,11 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
           </div>
 
           <div className="bg-white rounded-2xl shadow-2xl p-6 h-fit sticky top-8 w-full lg:w-[320px] shrink-0">
+            {timersContent && (
+              <div className="mb-6 hidden lg:flex flex-col gap-4 w-full">
+                {timersContent}
+              </div>
+            )}
             <h3 className="text-xl font-bold text-slate-800 mb-4">Game Info</h3>
 
             {game.status === 'active' && (
