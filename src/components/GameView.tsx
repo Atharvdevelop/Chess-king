@@ -109,9 +109,10 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const loadMoves = async () => {
     const moves = await getMoves(gameId);
     setMovesData(moves);
-    const history = moves.map((m) =>
-      `${m.move_number}. ${m.notation || 'Move'}${m.is_check && !m.notation?.includes('+') && !m.notation?.includes('#') ? '+' : ''}${m.is_checkmate && !m.notation?.includes('#') ? '#' : ''}`
-    );
+    const history = moves.map((m) => {
+      const displayNotation = (m.notation && m.notation !== 'null-null') ? m.notation : '...';
+      return `${m.move_number}. ${displayNotation}${m.is_check && !displayNotation.includes('+') && !displayNotation.includes('#') ? '+' : ''}${m.is_checkmate && !displayNotation.includes('#') ? '#' : ''}`;
+    });
     setMoveHistory(history);
   };
 
@@ -126,19 +127,9 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       if (game?.status !== 'finished' || movesData.length === 0) return;
 
       if (e.key === 'ArrowLeft') {
-        setCurrentViewIndex(prev => {
-          // If viewing live (-1), treat it as the last move before stepping back
-          const currentIndex = prev === -1 ? movesData.length - 1 : prev;
-          return Math.max(0, currentIndex - 1);
-        });
+        setCurrentViewIndex(prev => Math.max(0, prev - 1));
       } else if (e.key === 'ArrowRight') {
-        setCurrentViewIndex(prev => {
-          // If already live (-1), stay there. Otherwise, step forward.
-          const currentIndex = prev === -1 ? movesData.length - 1 : prev;
-          const nextIndex = Math.min(movesData.length - 1, currentIndex + 1);
-          // Return to -1 (live view) when reaching the end
-          return nextIndex === movesData.length - 1 ? -1 : nextIndex;
-        });
+        setCurrentViewIndex(prev => Math.min(movesData.length - 1, prev + 1));
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -154,14 +145,17 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       const m = movesData[i];
       
       // CRITICAL: Defensive check to prevent the White Screen of Death
-      if (!m?.from_position || !m?.to_position) {
+      const moveNotation = m?.notation || '...';
+      const notationParts = moveNotation !== '...' ? moveNotation.split('-') : [];
+
+      if (notationParts.length !== 2) {
         console.warn('Skipping corrupted move data at index', i, m);
         continue; // Skip corrupted data
       }
 
       try {
-        const from = algebraicToPosition(m.from_position);
-        const to = algebraicToPosition(m.to_position);
+        const from = algebraicToPosition(notationParts[0]);
+        const to = algebraicToPosition(notationParts[1]);
         const res = makeMove(board, from, to);
         board = res.newBoard;
       } catch (err) {
