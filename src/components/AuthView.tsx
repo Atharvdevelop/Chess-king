@@ -134,7 +134,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
         .eq('id', data.user.id)
         .single();
 
-      onAuthSuccess(data.user.id, profile?.username ?? data.user.email ?? 'Player');
+      onAuthSuccess(data.user.id, profile?.username ?? 'Player');
     } catch (err: any) {
       setError(err.message ?? 'Sign in failed. Please try again.');
     } finally {
