@@ -24,7 +24,6 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const [blackTime, setBlackTime] = useState(600);
   const [isMoving, setIsMoving] = useState(false);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   // Wall-clock ref: set to Date.now() whenever the active turn (or DB snapshot) changes.
   const timerStartedAt = useRef<number>(Date.now());
   // DB snapshot of each player's remaining time at the moment timerStartedAt was captured.
@@ -54,10 +53,6 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       loadMoves();
     });
 
-    const refreshInterval = setInterval(() => {
-      loadGame();
-    }, 5000);
-
     // Tick at 100 ms – compute display time via wall-clock diff, not accumulation.
     const timerInterval = setInterval(() => {
       setGame((prevGame) => {
@@ -78,12 +73,10 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       });
     }, 100);
 
-    refreshIntervalRef.current = refreshInterval;
     timerIntervalRef.current = timerInterval;
 
     return () => {
       channel.unsubscribe();
-      clearInterval(refreshInterval);
       clearInterval(timerInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
