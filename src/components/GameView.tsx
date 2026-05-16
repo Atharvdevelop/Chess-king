@@ -32,24 +32,25 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   // Which color was active when the snapshot was taken.
   const activeColorSnapshot = useRef<PieceColor | null>(null);
 
-  // Reset the wall-clock snapshot whenever we receive a fresh DB state.
-  const resetTimerSnapshot = (g: Game | any) => {
-    timerStartedAt.current = Date.now();
-    whiteTimeSnapshot.current = g.white_time ?? g.white_time_remaining;
-    blackTimeSnapshot.current = g.black_time ?? g.black_time_remaining;
-    activeColorSnapshot.current = g.current_turn;
-  };
-
   useEffect(() => {
     loadGame();
     loadMoves();
 
-    const channel = subscribeToGame(gameId, (updatedGame: any) => {
-      setGame(updatedGame);
-      // Re-anchor the wall-clock snapshot to the freshly received DB values.
-      resetTimerSnapshot(updatedGame);
-      setWhiteTime(updatedGame.white_time ?? updatedGame.white_time_remaining);
-      setBlackTime(updatedGame.black_time ?? updatedGame.black_time_remaining);
+    const channel = subscribeToGame(gameId, (payload_new: any) => {
+      setGame(payload_new);
+      
+      // Update local timer state variables directly using these new fields
+      setWhiteTime(payload_new.white_time);
+      setBlackTime(payload_new.black_time);
+      
+      // Update snapshots directly using these new fields
+      whiteTimeSnapshot.current = payload_new.white_time;
+      blackTimeSnapshot.current = payload_new.black_time;
+      activeColorSnapshot.current = payload_new.current_turn;
+      
+      // Immediately reset the local tracking clock reference
+      timerStartedAt.current = Date.now();
+      
       loadMoves();
     });
 
@@ -87,9 +88,13 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     if (gameData) {
       setGame(gameData);
       // Re-anchor snapshot so the local timer stays in sync with the DB.
-      resetTimerSnapshot(gameData);
-      setWhiteTime(gameData.white_time_remaining);
-      setBlackTime(gameData.black_time_remaining);
+      timerStartedAt.current = Date.now();
+      whiteTimeSnapshot.current = (gameData as any).white_time ?? gameData.white_time_remaining;
+      blackTimeSnapshot.current = (gameData as any).black_time ?? gameData.black_time_remaining;
+      activeColorSnapshot.current = gameData.current_turn;
+
+      setWhiteTime((gameData as any).white_time ?? gameData.white_time_remaining);
+      setBlackTime((gameData as any).black_time ?? gameData.black_time_remaining);
 
       if (gameData.white_player_id === player.id) {
         setPlayerColor('white');
