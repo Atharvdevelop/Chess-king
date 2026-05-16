@@ -8,6 +8,81 @@ interface AuthViewProps {
   onAuthSuccess: (userId: string, username: string) => void;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-components MUST live outside AuthView so React sees a stable component
+// type across re-renders. Defining them inside causes every keystroke to
+// unmount/remount the <input> (new component type = new DOM node = lost focus).
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface InputFieldProps {
+  id: string;
+  type?: string;
+  label: string;
+  icon: React.FC<{ className?: string; style?: React.CSSProperties }>;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  loading?: boolean;
+  rightElement?: React.ReactNode;
+}
+
+function InputField({
+  id, type = 'text', label, icon: Icon, value, onChange,
+  placeholder, disabled, loading, rightElement,
+}: InputFieldProps) {
+  return (
+    <div className="mb-4">
+      <label htmlFor={id} className="block text-sm font-semibold text-slate-600 mb-1.5">
+        {label}
+      </label>
+      <div className="relative flex items-center">
+        <Icon
+          className="absolute left-3.5 text-slate-400 pointer-events-none"
+          style={{ width: 18, height: 18 }}
+        />
+        <input
+          id={id}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          disabled={disabled || loading}
+          className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50
+            text-slate-900 placeholder:text-slate-400 text-sm
+            focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent
+            disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+        />
+        {rightElement && (
+          <div className="absolute right-3">{rightElement}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface PasswordToggleProps {
+  show: boolean;
+  onToggle: () => void;
+}
+
+function PasswordToggle({ show, onToggle }: PasswordToggleProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="text-slate-400 hover:text-slate-600 transition-colors"
+      tabIndex={-1}
+    >
+      {show ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main component
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   const [mode, setMode] = useState<ViewMode>('signin');
   const [loading, setLoading] = useState(false);
@@ -29,10 +104,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   // Forgot password field
   const [forgotEmail, setForgotEmail] = useState('');
 
-  const clearMessages = () => {
-    setError('');
-    setSuccess('');
-  };
+  const clearMessages = () => { setError(''); setSuccess(''); };
 
   const switchMode = (next: ViewMode) => {
     clearMessages();
@@ -40,31 +112,29 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
     setMode(next);
   };
 
+  const togglePassword = () => setShowPassword(p => !p);
+
   // ─── SIGN IN ────────────────────────────────────────────────────────────────
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
     if (!signInEmail.trim() || !signInPassword) return;
-
     setLoading(true);
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: signInEmail.trim(),
         password: signInPassword,
       });
-
       if (authError) throw authError;
       if (!data.user) throw new Error('No user returned from Supabase.');
 
-      // Fetch matching profile for the username
       const { data: profile } = await supabase
         .from('profiles')
         .select('username')
         .eq('id', data.user.id)
         .single();
 
-      const username = profile?.username ?? data.user.email ?? 'Player';
-      onAuthSuccess(data.user.id, username);
+      onAuthSuccess(data.user.id, profile?.username ?? data.user.email ?? 'Player');
     } catch (err: any) {
       setError(err.message ?? 'Sign in failed. Please try again.');
     } finally {
@@ -76,59 +146,33 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
-
-    if (regPassword !== regConfirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (regPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-    if (!regUsername.trim() || !regFullName.trim()) {
-      setError('Username and full name are required.');
-      return;
-    }
-
+    if (regPassword !== regConfirmPassword) { setError('Passwords do not match.'); return; }
+    if (regPassword.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (!regUsername.trim() || !regFullName.trim()) { setError('Username and full name are required.'); return; }
     setLoading(true);
     try {
-      // 1. Create Supabase Auth account
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: regEmail.trim(),
         password: regPassword,
-        options: {
-          data: {
-            username: regUsername.trim(),
-            full_name: regFullName.trim(),
-          },
-        },
+        options: { data: { username: regUsername.trim(), full_name: regFullName.trim() } },
       });
-
       if (signUpError) throw signUpError;
       if (!data.user) throw new Error('No user returned after registration.');
 
-      // 2. Write extra profile data into public.profiles table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: data.user.id,
-          username: regUsername.trim(),
-          full_name: regFullName.trim(),
-          email: regEmail.trim(),
-          created_at: new Date().toISOString(),
-        });
-
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: data.user.id,
+        username: regUsername.trim(),
+        full_name: regFullName.trim(),
+        email: regEmail.trim(),
+        created_at: new Date().toISOString(),
+      });
       if (profileError) throw profileError;
 
-      // 3. Also upsert into players table (used by existing game logic)
-      await supabase
-        .from('players')
-        .upsert(
-          { username: regUsername.trim(), status: 'online', last_seen: new Date().toISOString() },
-          { onConflict: 'username' }
-        );
+      await supabase.from('players').upsert(
+        { username: regUsername.trim(), status: 'online', last_seen: new Date().toISOString() },
+        { onConflict: 'username' }
+      );
 
-      // If email confirmation is disabled, the session is live immediately
       if (data.session) {
         onAuthSuccess(data.user.id, regUsername.trim());
       } else {
@@ -147,7 +191,6 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
     e.preventDefault();
     clearMessages();
     if (!forgotEmail.trim()) return;
-
     setLoading(true);
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
@@ -164,54 +207,13 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
     }
   };
 
-  // ─── SHARED UI ELEMENTS ─────────────────────────────────────────────────────
-  const InputField = ({
-    id, type = 'text', label, icon: Icon, value, onChange, placeholder, disabled,
-    rightElement,
-  }: {
-    id: string; type?: string; label: string; icon: React.FC<any>; value: string;
-    onChange: (v: string) => void; placeholder: string; disabled?: boolean;
-    rightElement?: React.ReactNode;
-  }) => (
-    <div className="mb-4">
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-600 mb-1.5">
-        {label}
-      </label>
-      <div className="relative flex items-center">
-        <Icon className="absolute left-3.5 w-4.5 h-4.5 text-slate-400 pointer-events-none" style={{ width: 18, height: 18 }} />
-        <input
-          id={id}
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          disabled={disabled || loading}
-          className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50
-            text-slate-900 placeholder:text-slate-400 text-sm
-            focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent
-            disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-        />
-        {rightElement && (
-          <div className="absolute right-3">{rightElement}</div>
-        )}
-      </div>
-    </div>
-  );
+  // ─── Stable password-toggle element (value captured once per render) ────────
+  const pwToggle = <PasswordToggle show={showPassword} onToggle={togglePassword} />;
 
-  const PasswordToggle = () => (
-    <button
-      type="button"
-      onClick={() => setShowPassword(p => !p)}
-      className="text-slate-400 hover:text-slate-600 transition-colors"
-      tabIndex={-1}
-    >
-      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-    </button>
-  );
-
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-950 flex items-center justify-center p-4">
-      {/* Decorative board pattern background */}
+      {/* Decorative board pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-5">
         <div className="grid grid-cols-8 h-full">
           {Array.from({ length: 64 }).map((_, i) => (
@@ -224,7 +226,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* ── Logo & Branding ── */}
+        {/* ── Logo ── */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl
             bg-gradient-to-br from-yellow-400 to-amber-500 shadow-2xl shadow-amber-500/30 mb-4">
@@ -242,8 +244,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
 
         {/* ── Card ── */}
         <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl shadow-black/30 p-8">
-
-          {/* Error / Success banners */}
+          {/* Banners */}
           {error && (
             <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2">
               <span className="mt-0.5 shrink-0">⚠️</span>
@@ -257,41 +258,30 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
             </div>
           )}
 
-          {/* ──────────── SIGN IN ──────────── */}
+          {/* ── SIGN IN ── */}
           {mode === 'signin' && (
             <>
               <h2 className="text-xl font-bold text-slate-800 mb-6">Sign In</h2>
               <form onSubmit={handleSignIn}>
                 <InputField
-                  id="si-email"
-                  type="email"
-                  label="Email address"
-                  icon={Mail}
-                  value={signInEmail}
-                  onChange={setSignInEmail}
-                  placeholder="you@example.com"
+                  id="si-email" type="email" label="Email address" icon={Mail}
+                  value={signInEmail} onChange={setSignInEmail}
+                  placeholder="you@example.com" loading={loading}
                 />
                 <InputField
-                  id="si-password"
-                  type={showPassword ? 'text' : 'password'}
-                  label="Password"
-                  icon={Lock}
-                  value={signInPassword}
-                  onChange={setSignInPassword}
-                  placeholder="Your password"
-                  rightElement={<PasswordToggle />}
+                  id="si-password" type={showPassword ? 'text' : 'password'} label="Password" icon={Lock}
+                  value={signInPassword} onChange={setSignInPassword}
+                  placeholder="Your password" loading={loading}
+                  rightElement={pwToggle}
                 />
-
                 <div className="flex justify-end mb-6">
                   <button
-                    type="button"
-                    onClick={() => switchMode('forgot')}
+                    type="button" onClick={() => switchMode('forgot')}
                     className="text-xs text-violet-600 hover:text-violet-800 font-medium transition-colors"
                   >
                     Forgot password?
                   </button>
                 </div>
-
                 <button
                   type="submit"
                   disabled={loading || !signInEmail.trim() || !signInPassword}
@@ -303,75 +293,48 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign In <ChevronRight size={18} /></>}
                 </button>
               </form>
-
               <p className="text-center text-sm text-slate-500 mt-6">
                 Don't have an account?{' '}
-                <button
-                  onClick={() => switchMode('register')}
-                  className="text-violet-600 hover:text-violet-800 font-semibold transition-colors"
-                >
+                <button onClick={() => switchMode('register')} className="text-violet-600 hover:text-violet-800 font-semibold transition-colors">
                   Register
                 </button>
               </p>
             </>
           )}
 
-          {/* ──────────── REGISTER ──────────── */}
+          {/* ── REGISTER ── */}
           {mode === 'register' && (
             <>
               <h2 className="text-xl font-bold text-slate-800 mb-6">Create Account</h2>
               <form onSubmit={handleRegister}>
                 <div className="grid grid-cols-2 gap-x-3">
-                  <div>
-                    <InputField
-                      id="reg-username"
-                      label="Username"
-                      icon={User}
-                      value={regUsername}
-                      onChange={setRegUsername}
-                      placeholder="chess_master"
-                    />
-                  </div>
-                  <div>
-                    <InputField
-                      id="reg-fullname"
-                      label="Full Name"
-                      icon={User}
-                      value={regFullName}
-                      onChange={setRegFullName}
-                      placeholder="Garry Kasparov"
-                    />
-                  </div>
+                  <InputField
+                    id="reg-username" label="Username" icon={User}
+                    value={regUsername} onChange={setRegUsername}
+                    placeholder="chess_master" loading={loading}
+                  />
+                  <InputField
+                    id="reg-fullname" label="Full Name" icon={User}
+                    value={regFullName} onChange={setRegFullName}
+                    placeholder="Garry Kasparov" loading={loading}
+                  />
                 </div>
                 <InputField
-                  id="reg-email"
-                  type="email"
-                  label="Email address"
-                  icon={Mail}
-                  value={regEmail}
-                  onChange={setRegEmail}
-                  placeholder="you@example.com"
+                  id="reg-email" type="email" label="Email address" icon={Mail}
+                  value={regEmail} onChange={setRegEmail}
+                  placeholder="you@example.com" loading={loading}
                 />
                 <InputField
-                  id="reg-password"
-                  type={showPassword ? 'text' : 'password'}
-                  label="Password"
-                  icon={Lock}
-                  value={regPassword}
-                  onChange={setRegPassword}
-                  placeholder="At least 6 characters"
-                  rightElement={<PasswordToggle />}
+                  id="reg-password" type={showPassword ? 'text' : 'password'} label="Password" icon={Lock}
+                  value={regPassword} onChange={setRegPassword}
+                  placeholder="At least 6 characters" loading={loading}
+                  rightElement={pwToggle}
                 />
                 <InputField
-                  id="reg-confirm"
-                  type={showPassword ? 'text' : 'password'}
-                  label="Confirm Password"
-                  icon={Lock}
-                  value={regConfirmPassword}
-                  onChange={setRegConfirmPassword}
-                  placeholder="Repeat your password"
+                  id="reg-confirm" type={showPassword ? 'text' : 'password'} label="Confirm Password" icon={Lock}
+                  value={regConfirmPassword} onChange={setRegConfirmPassword}
+                  placeholder="Repeat your password" loading={loading}
                 />
-
                 <button
                   type="submit"
                   disabled={loading || !regEmail.trim() || !regPassword || !regUsername.trim() || !regFullName.trim()}
@@ -383,20 +346,16 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Create Account <ChevronRight size={18} /></>}
                 </button>
               </form>
-
               <p className="text-center text-sm text-slate-500 mt-6">
                 Already have an account?{' '}
-                <button
-                  onClick={() => switchMode('signin')}
-                  className="text-violet-600 hover:text-violet-800 font-semibold transition-colors"
-                >
+                <button onClick={() => switchMode('signin')} className="text-violet-600 hover:text-violet-800 font-semibold transition-colors">
                   Sign In
                 </button>
               </p>
             </>
           )}
 
-          {/* ──────────── FORGOT PASSWORD ──────────── */}
+          {/* ── FORGOT PASSWORD ── */}
           {mode === 'forgot' && (
             <>
               <button
@@ -405,23 +364,16 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
               >
                 <ArrowLeft size={15} /> Back to Sign In
               </button>
-
               <h2 className="text-xl font-bold text-slate-800 mb-2">Forgot Password?</h2>
               <p className="text-sm text-slate-500 mb-6">
                 Enter your email address and we'll send you a password reset link.
               </p>
-
               <form onSubmit={handleForgotPassword}>
                 <InputField
-                  id="forgot-email"
-                  type="email"
-                  label="Email address"
-                  icon={Mail}
-                  value={forgotEmail}
-                  onChange={setForgotEmail}
-                  placeholder="you@example.com"
+                  id="forgot-email" type="email" label="Email address" icon={Mail}
+                  value={forgotEmail} onChange={setForgotEmail}
+                  placeholder="you@example.com" loading={loading}
                 />
-
                 <button
                   type="submit"
                   disabled={loading || !forgotEmail.trim()}
