@@ -15,8 +15,16 @@ import {
 import { supabase } from '../lib/supabase';
 import { Users, MessageCircle, Check, X, Eye, Activity, Globe } from 'lucide-react';
 
-// Added onGameStart to the props destructuring
-export default function GameLobby({ player, onGameStart }: { player: Player, onGameStart: (id: string) => void }) {
+// Added onGameStart and onViewProfile to the props
+export default function GameLobby({
+  player,
+  onGameStart,
+  onViewProfile,
+}: {
+  player: Player;
+  onGameStart: (id: string) => void;
+  onViewProfile: (username: string) => void;
+}) {
   // Main Navigation State
   const [mainTab, setMainTab] = useState<'lobby' | 'members' | 'playing'>('lobby');
   const [lobbyTab, setLobbyTab] = useState<'challenge' | 'pending'>('challenge');
@@ -185,12 +193,20 @@ export default function GameLobby({ player, onGameStart }: { player: Player, onG
           {mainTab === 'members' && (
             <div className="space-y-3">
               <h2 className="text-2xl font-bold text-slate-800 mb-4">Total Members</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {members.map(m => (
-                  <div key={m.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 flex items-center gap-3">
-                    <Users className="text-slate-400 w-5 h-5" />
-                    <span className="font-semibold text-slate-700">{m.username}</span>
-                    {m.status === 'busy' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded">In Game</span>}
+                  <div key={m.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Users className="text-slate-400 w-5 h-5" />
+                      <span className="font-semibold text-slate-700">{m.username}</span>
+                      {m.status === 'busy' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded">In Game</span>}
+                    </div>
+                    <button
+                      onClick={() => onViewProfile(m.username)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-semibold transition-colors shrink-0"
+                    >
+                      Profile →
+                    </button>
                   </div>
                 ))}
               </div>

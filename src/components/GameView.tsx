@@ -36,21 +36,26 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     loadGame();
     loadMoves();
 
-    const channel = subscribeToGame(gameId, (payload_new: any) => {
-      setGame(payload_new);
-      
-      // Update local timer state variables directly using these new fields
-      setWhiteTime(payload_new.white_time);
-      setBlackTime(payload_new.black_time);
-      
-      // Update snapshots directly using these new fields
-      whiteTimeSnapshot.current = payload_new.white_time;
-      blackTimeSnapshot.current = payload_new.black_time;
-      activeColorSnapshot.current = payload_new.current_turn;
-      
-      // Immediately reset the local tracking clock reference
+    const channel = subscribeToGame(gameId, (updatedGame: Game) => {
+      setGame(updatedGame);
+
+      // Grab the server-deducted clock values from the realtime payload.
+      // Column names in the DB (and therefore in payload.new) are
+      // white_time_remaining / black_time_remaining — NOT white_time / black_time.
+      const wt = updatedGame.white_time_remaining;
+      const bt = updatedGame.black_time_remaining;
+
+      // Update display state
+      setWhiteTime(wt);
+      setBlackTime(bt);
+
+      // Re-anchor the wall-clock countdown so the local tick loop
+      // continues from the correct server-confirmed value.
+      whiteTimeSnapshot.current = wt;
+      blackTimeSnapshot.current = bt;
+      activeColorSnapshot.current = updatedGame.current_turn;
       timerStartedAt.current = Date.now();
-      
+
       loadMoves();
     });
 
