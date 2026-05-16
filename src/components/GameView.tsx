@@ -33,10 +33,10 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const activeColorSnapshot = useRef<PieceColor | null>(null);
 
   // Reset the wall-clock snapshot whenever we receive a fresh DB state.
-  const resetTimerSnapshot = (g: Game) => {
+  const resetTimerSnapshot = (g: Game | any) => {
     timerStartedAt.current = Date.now();
-    whiteTimeSnapshot.current = g.white_time_remaining;
-    blackTimeSnapshot.current = g.black_time_remaining;
+    whiteTimeSnapshot.current = g.white_time ?? g.white_time_remaining;
+    blackTimeSnapshot.current = g.black_time ?? g.black_time_remaining;
     activeColorSnapshot.current = g.current_turn;
   };
 
@@ -44,12 +44,12 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     loadGame();
     loadMoves();
 
-    const channel = subscribeToGame(gameId, (updatedGame) => {
+    const channel = subscribeToGame(gameId, (updatedGame: any) => {
       setGame(updatedGame);
       // Re-anchor the wall-clock snapshot to the freshly received DB values.
       resetTimerSnapshot(updatedGame);
-      setWhiteTime(updatedGame.white_time_remaining);
-      setBlackTime(updatedGame.black_time_remaining);
+      setWhiteTime(updatedGame.white_time ?? updatedGame.white_time_remaining);
+      setBlackTime(updatedGame.black_time ?? updatedGame.black_time_remaining);
       loadMoves();
     });
 
