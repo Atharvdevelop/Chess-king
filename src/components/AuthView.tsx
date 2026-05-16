@@ -316,7 +316,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
                   <InputField
                     id="reg-fullname" label="Full Name" icon={User}
                     value={regFullName} onChange={setRegFullName}
-                    placeholder="Garry Kasparov" loading={loading}
+                    placeholder="Atharv Chaturvedi" loading={loading}
                   />
                 </div>
                 <InputField
