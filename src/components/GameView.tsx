@@ -184,15 +184,14 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     try {
       // Use the unified profile UUID — this must match games.white/black_player_id
       // so the Postgres RPC can validate whose turn it is.
-      const newBoard = await makeGameMove(gameId, profileId, from, to, game);
+      const updatedGame = await makeGameMove(gameId, profileId, from, to, game);
 
-      // Optimistically apply the new board immediately so the piece stays on
-      // its destination square before the realtime subscription delivers the
-      // authoritative DB snapshot (which will be identical).
-      const nextTurn = game.current_turn === 'white' ? 'black' : 'white';
+      // Optimistically apply the returned game JSON block immediately so the piece
+      // stays on its destination square and timers sync before the realtime subscription
+      // delivers the authoritative DB snapshot.
       setGame((prev) =>
         prev
-          ? { ...prev, board_state: newBoard, current_turn: nextTurn }
+          ? { ...prev, ...updatedGame }
           : prev
       );
     } catch (error) {

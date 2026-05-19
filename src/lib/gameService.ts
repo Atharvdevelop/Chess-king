@@ -220,7 +220,7 @@ export async function makeGameMove(
   from: Position,
   to: Position,
   currentGame: Game
-): Promise<BoardState> {
+): Promise<Game> {
   const piece = currentGame.board_state[positionToKey(from)];
   if (!piece) throw new Error('No piece at source position');
 
@@ -240,7 +240,7 @@ export async function makeGameMove(
   const isCheckmateVal = isCheckmate(newBoard, nextTurn);
 
   // Single RPC call → UPDATE games + INSERT INTO moves in one transaction.
-  const { error } = await supabase.rpc('make_game_move', {
+  const { data, error } = await supabase.rpc('make_game_move', {
     p_game_id:       gameId,
     p_player_id:     playerId,
     p_new_board:     newBoard,
@@ -261,20 +261,26 @@ export async function makeGameMove(
     throw error;
   }
 
+  const returnedGame = data as unknown as Game;
+
   // --- Post-move game-end detection ---
   // Check the board that will be facing the next player.
   // isCheckmate / isStalemate use the full self-check-aware legal-move scan.
   if (isCheckmate(newBoard, nextTurn)) {
     // The player who just moved wins.
     await endGame(gameId, currentGame.current_turn);
+    returnedGame.status = 'finished';
+    returnedGame.winner = currentGame.current_turn;
   } else if (isStalemate(newBoard, nextTurn)) {
     // No legal moves but not in check → draw.
     await endGame(gameId, null);
+    returnedGame.status = 'finished';
+    returnedGame.winner = 'draw';
   }
 
-  // Return the computed board so the caller can apply an optimistic UI update
+  // Return the computed game row so the caller can apply an optimistic UI update
   // immediately, before the realtime subscription delivers the DB snapshot.
-  return newBoard;
+  return returnedGame;
 }
 
 export async function getMoves(gameId: string): Promise<Move[]> {
