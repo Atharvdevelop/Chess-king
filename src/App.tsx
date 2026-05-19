@@ -174,7 +174,7 @@ function App() {
     return (
       <GameView
         gameId={view.gameId}
-        player={player}
+        profileId={profileId ?? player.id}
         onBackToLobby={handleBackToLobby}
       />
     );
@@ -197,6 +197,7 @@ function App() {
       <div className="flex-1 overflow-hidden">
         <GameLobby
           player={player}
+          profileId={profileId ?? player.id}
           onGameStart={handleGameStart}
           onViewProfile={handleViewProfile}
         />

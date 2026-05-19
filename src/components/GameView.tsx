@@ -8,11 +8,11 @@ import { ArrowLeft, Copy, Check } from 'lucide-react';
 
 interface GameViewProps {
   gameId: string;
-  player: Player;
+  profileId: string;   // unified auth UUID — matches games.white/black_player_id
   onBackToLobby: () => void;
 }
 
-export default function GameView({ gameId, player, onBackToLobby }: GameViewProps) {
+export default function GameView({ gameId, profileId, onBackToLobby }: GameViewProps) {
   const [game, setGame] = useState<Game | null>(null);
   const [playerColor, setPlayerColor] = useState<PieceColor | null>(null);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
@@ -31,6 +31,9 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   const blackTimeSnapshot = useRef<number>(600);
   // Which color was active when the snapshot was taken.
   const activeColorSnapshot = useRef<PieceColor | null>(null);
+  // One-shot latch: prevents double-firing endGameOnTimeout when the server
+  // already resolved the game via a realtime UPDATE before the local timer fires.
+  const timeoutFiredRef = useRef(false);
 
   useEffect(() => {
     loadGame();
@@ -38,6 +41,12 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
 
     const channel = subscribeToGame(gameId, (updatedGame: Game) => {
       setGame(updatedGame);
+
+      // If the server has already resolved the game (checkmate, resignation, or
+      // its own timeout write), reset the latch so future games work correctly.
+      if (updatedGame.status !== 'active') {
+        timeoutFiredRef.current = false;
+      }
 
       // Grab the server-deducted clock values from the realtime payload.
       // Column names in the DB (and therefore in payload.new) are
@@ -101,9 +110,9 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
       setWhiteTime((gameData as any).white_time ?? gameData.white_time_remaining);
       setBlackTime((gameData as any).black_time ?? gameData.black_time_remaining);
 
-      if (gameData.white_player_id === player.id) {
+      if (gameData.white_player_id === profileId) {
         setPlayerColor('white');
-      } else if (gameData.black_player_id === player.id) {
+      } else if (gameData.black_player_id === profileId) {
         setPlayerColor('black');
       }
     }
@@ -173,7 +182,9 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
     setIsMoving(true);
 
     try {
-      const newBoard = await makeGameMove(gameId, player.id, from, to, game);
+      // Use the unified profile UUID — this must match games.white/black_player_id
+      // so the Postgres RPC can validate whose turn it is.
+      const newBoard = await makeGameMove(gameId, profileId, from, to, game);
 
       // Optimistically apply the new board immediately so the piece stays on
       // its destination square before the realtime subscription delivers the
@@ -192,7 +203,12 @@ export default function GameView({ gameId, player, onBackToLobby }: GameViewProp
   };
 
   const handleTimeUp = async (lostColor: PieceColor) => {
+    // Safety check 1: game must still be active (server may have already resolved it)
     if (!game || game.status !== 'active') return;
+    // Safety check 2: one-shot latch prevents a double-write race between the
+    // local 100ms tick loop and a near-simultaneous server-side move/resolution.
+    if (timeoutFiredRef.current) return;
+    timeoutFiredRef.current = true;
     await endGameOnTimeout(gameId, lostColor);
   };
 

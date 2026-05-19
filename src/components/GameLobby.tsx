@@ -18,10 +18,12 @@ import { Users, MessageCircle, Check, X, Eye, Activity, Globe } from 'lucide-rea
 // Added onGameStart and onViewProfile to the props
 export default function GameLobby({
   player,
+  profileId,
   onGameStart,
   onViewProfile,
 }: {
   player: Player;
+  profileId: string;   // unified auth UUID — matches games.white/black_player_id
   onGameStart: (id: string) => void;
   onViewProfile: (username: string) => void;
 }) {
@@ -40,12 +42,13 @@ export default function GameLobby({
 
   const refreshData = async () => {
     try {
-      const players = await getLobbyPlayers(player.id);
+      // Lobby view filters out busy players — pass the unified profile UUID
+      const players = await getLobbyPlayers(profileId);
       setLobbyPlayers(players);
-      
-      const challenges = await getPendingChallenges(player.id);
+
+      const challenges = await getPendingChallenges(profileId);
       setPendingChallenges(challenges);
-      
+
       if (mainTab === 'members') setMembers(await getAllMembers());
       if (mainTab === 'playing') setActiveMatches(await getActiveMatches());
     } catch (err) {
@@ -62,22 +65,22 @@ export default function GameLobby({
     refreshData();
 
     // 1. HEARTBEAT: Keep the player 'online'
-    const heartbeat = setInterval(() => updateHeartbeat(player.id), 10000);
+    const heartbeat = setInterval(() => updateHeartbeat(profileId), 10000);
 
     // 2. REFRESH: Auto-update lobby every 15s to remove ghosts
     const poller = setInterval(refreshData, 15000);
 
     // 3. REALTIME: Listen for challenges or list refreshes
-    const generalChannel = subscribeToChallenges(player.id, () => {
+    //    Use profileId so the filter matches challenges.challenger_id / challenged_id
+    const generalChannel = subscribeToChallenges(profileId, () => {
       refreshData();
     });
 
     // 4. REALTIME (Redirect): The "Nuclear Fix" for the Challenger
-    const redirectChannel = subscribeToChallengeAccepted(player.id, (gameId, opponentName) => {
+    const redirectChannel = subscribeToChallengeAccepted(profileId, (gameId, opponentName) => {
       setNotification(`🎉 ${opponentName} accepted! Transporting to match...`);
-      
+
       setTimeout(() => {
-        // This triggers the App.tsx URL detector
         onGameStart(gameId);
       }, 2000);
     });
@@ -89,13 +92,13 @@ export default function GameLobby({
       supabase.removeChannel(redirectChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player.id]);
+  }, [profileId]);
 
   const handleAccept = async (c: Challenge) => {
     try {
-      const data = await acceptChallenge(c.id, player.id, c.challenger_username || 'Opponent', player.username);
+      // Pass the unified profile UUID so games.black_player_id is set correctly
+      const data = await acceptChallenge(c.id, profileId, c.challenger_username || 'Opponent', player.username);
       if (data.game_id) {
-        // Transport the acceptor immediately
         onGameStart(data.game_id);
       }
     } catch (err) {
@@ -163,7 +166,7 @@ export default function GameLobby({
                         <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                         <span className="font-bold text-slate-700 text-lg">{p.username}</span>
                       </div>
-                      <button onClick={() => createChallenge(player.id, p.id)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md transition flex items-center gap-2 shadow-sm">
+                      <button onClick={() => createChallenge(profileId, p.id)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md transition flex items-center gap-2 shadow-sm">
                         <MessageCircle className="w-4 h-4"/> Challenge
                       </button>
                     </div>
