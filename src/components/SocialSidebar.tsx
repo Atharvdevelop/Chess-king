@@ -32,12 +32,11 @@ interface Message {
 
 interface SocialSidebarProps {
   currentProfileId: string;   // auth UUID from profiles table
-  currentUsername: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SocialSidebar({ currentProfileId, currentUsername }: SocialSidebarProps) {
+export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) {
   const [tab, setTab] = useState<'players' | 'friends'>('players');
 
   // All players (excluding self)

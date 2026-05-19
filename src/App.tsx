@@ -204,7 +204,6 @@ function App() {
       {profileId && (
         <SocialSidebar
           currentProfileId={profileId}
-          currentUsername={player.username}
         />
       )}
     </div>
