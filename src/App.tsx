@@ -79,7 +79,7 @@ function App() {
 
         if (profile?.username && isMounted) {
           setProfileId(profile.id);
-          const playerData = await createOrGetPlayer(profile.username);
+          const playerData = await createOrGetPlayer(session.user.id, profile.username);
           if (isMounted) {
             setPlayer(playerData);
           }
@@ -128,7 +128,7 @@ function App() {
 
   const handleAuthSuccess = async (_userId: string, username: string) => {
     try {
-      const playerData = await createOrGetPlayer(username);
+      const playerData = await createOrGetPlayer(_userId, username);
       setPlayer(playerData);
       navigate('/', { screen: 'lobby' });
     } catch (err) {

@@ -103,12 +103,12 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
       setGame(gameData);
       // Re-anchor snapshot so the local timer stays in sync with the DB.
       timerStartedAt.current = Date.now();
-      whiteTimeSnapshot.current = (gameData as any).white_time ?? gameData.white_time_remaining;
-      blackTimeSnapshot.current = (gameData as any).black_time ?? gameData.black_time_remaining;
+      whiteTimeSnapshot.current = gameData.white_time_remaining;
+      blackTimeSnapshot.current = gameData.black_time_remaining;
       activeColorSnapshot.current = gameData.current_turn;
 
-      setWhiteTime((gameData as any).white_time ?? gameData.white_time_remaining);
-      setBlackTime((gameData as any).black_time ?? gameData.black_time_remaining);
+      setWhiteTime(gameData.white_time_remaining);
+      setBlackTime(gameData.black_time_remaining);
 
       if (gameData.white_player_id === profileId) {
         setPlayerColor('white');

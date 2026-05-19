@@ -21,14 +21,14 @@ export async function updateHeartbeat(playerId: string) {
     .eq('id', playerId);
 }
 
-export async function createOrGetPlayer(username: string): Promise<Player> {
+export async function createOrGetPlayer(userId: string, username: string): Promise<Player> {
   // Upsert on the unique `username` column so two simultaneous logins with the
   // same name cannot both see "player not found" and race to insert.
   // Existing rows get their status and last_seen refreshed; new rows are created.
   const { data, error } = await supabase
     .from('players')
     .upsert(
-      { username, status: 'online', last_seen: new Date().toISOString() },
+      { id: userId, username, status: 'online', last_seen: new Date().toISOString() },
       { onConflict: 'username' }
     )
     .select()
