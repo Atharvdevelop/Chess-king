@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { Player } from './types/chess';
 import { createOrGetPlayer, updatePlayerStatus } from './lib/gameService';
 import { supabase } from './lib/supabase';
@@ -32,37 +33,79 @@ function resolveInitialView(): AppView {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 function App() {
+  const [session, setSession] = useState<Session | null>(null);
   const [player, setPlayer] = useState<Player | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [view, setView] = useState<AppView>(resolveInitialView);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   // ── 1. Session bootstrap ───────────────────────────────────────────────────
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        await hydratePlayer(session.user.id);
-      }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
       setBootstrapping(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session?.user) {
-          await hydratePlayer(session.user.id);
-        } else {
-          setPlayer(null);
-          navigate('/', { screen: 'auth' });
-        }
+      (_event, session) => {
+        setSession(session);
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // ── 2. After bootstrap: resolve the correct screen ────────────────────────
+  // ── 2. Profile fetching sequence ───────────────────────────────────────────
   useEffect(() => {
-    if (bootstrapping) return;
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      if (!session?.user?.id) {
+        if (isMounted) {
+          setPlayer(null);
+          setProfileId(null);
+        }
+        return;
+      }
+
+      if (isMounted) setLoadingProfile(true);
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.username && isMounted) {
+          setProfileId(profile.id);
+          const playerData = await createOrGetPlayer(profile.username);
+          if (isMounted) {
+            setPlayer(playerData);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to hydrate player profile:', err);
+      } finally {
+        if (isMounted) {
+          setLoadingProfile(false);
+        }
+      }
+    };
+
+    if (!bootstrapping) {
+      loadProfile();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, bootstrapping]);
+
+  // ── 3. Screen resolution ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (bootstrapping || loadingProfile) return;
+    
     // If no auth, always show auth regardless of URL intent
     if (!player) {
       setView({ screen: 'auth' });
@@ -75,25 +118,7 @@ function App() {
       }
       return prev; // preserve /game/:id or /profile/:username deep-links
     });
-  }, [bootstrapping, player]);
-
-  // ── 3. Player hydration ───────────────────────────────────────────────────
-  const hydratePlayer = async (userId: string) => {
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('id', userId)
-        .single();
-
-      if (!profile?.username) return;
-      setProfileId(profile.id);
-      const playerData = await createOrGetPlayer(profile.username);
-      setPlayer(playerData);
-    } catch (err) {
-      console.error('Failed to hydrate player profile:', err);
-    }
-  };
+  }, [bootstrapping, loadingProfile, player]);
 
   // ── 4. Navigation helpers ─────────────────────────────────────────────────
   function navigate(url: string, nextView: AppView) {
@@ -130,10 +155,13 @@ function App() {
   };
 
   // ── 5. Render ─────────────────────────────────────────────────────────────
-  if (bootstrapping || view.screen === 'loading') {
+  if (bootstrapping || loadingProfile || view.screen === 'loading') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-950 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-violet-500 border-t-cyan-400 rounded-full animate-spin shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
+          <p className="text-violet-300 animate-pulse text-sm font-medium tracking-widest uppercase">Initializing</p>
+        </div>
       </div>
     );
   }
