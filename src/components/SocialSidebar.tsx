@@ -197,17 +197,31 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
     // Tear down old channel
     if (chatChannelRef.current) supabase.removeChannel(chatChannelRef.current);
 
-    // Subscribe to new messages between the two users
+    // Subscribe to new messages between the two users using filters for efficiency and security
     chatChannelRef.current = supabase
-      .channel('public:messages')
+      .channel(`messages:${currentProfileId}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'messages',
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${currentProfileId}`
       }, (payload) => {
         const msg = payload.new as Message;
-        const relevant =
-          (msg.sender_id === currentProfileId && msg.receiver_id === friend.id) ||
-          (msg.sender_id === friend.id && msg.receiver_id === currentProfileId);
-        if (relevant) {
+        if (msg.sender_id === friend.id) {
+          setMessages(prev => {
+            if (prev.some(m => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        }
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `sender_id=eq.${currentProfileId}`
+      }, (payload) => {
+        const msg = payload.new as Message;
+        if (msg.receiver_id === friend.id) {
           setMessages(prev => {
             if (prev.some(m => m.id === msg.id)) return prev;
             return [...prev, msg];
@@ -221,6 +235,15 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Cleanup chat channel on unmount
+  useEffect(() => {
+    return () => {
+      if (chatChannelRef.current) {
+        supabase.removeChannel(chatChannelRef.current);
+      }
+    };
+  }, []);
 
   // Cleanup chat channel on close
   const closeChat = () => {
@@ -238,12 +261,20 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
     setSendingMsg(true);
     const body = msgInput.trim();
     setMsgInput('');
-    await supabase.from('messages').insert({
-      sender_id: currentProfileId,
-      receiver_id: chatFriend.id,
-      body,
-    });
-    setSendingMsg(false);
+    try {
+      const { error } = await supabase.from('messages').insert({
+        sender_id: currentProfileId, // explicitly assigning the authenticated profileId
+        receiver_id: chatFriend.id,
+        body,
+      });
+      if (error) {
+        console.error('Failed to send message due to RLS or other constraint:', error);
+      }
+    } catch (err) {
+      console.error('Exception occurred during message insertion:', err);
+    } finally {
+      setSendingMsg(false);
+    }
   };
 
   const handleMsgKeyDown = (e: React.KeyboardEvent) => {
@@ -490,9 +521,11 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
             )}
             {messages.map(msg => {
               const isMe = msg.sender_id === currentProfileId;
-              const senderUsername = msg.sender_id === currentProfileId
-                ? (currentUserProfile?.username || 'Me')
-                : chatFriend.username;
+              // Resolve sender's identity by looking up sender_id in the profiles dataset (currentUserProfile and allPlayers)
+              const senderProfile = msg.sender_id === currentProfileId
+                ? currentUserProfile
+                : allPlayers.find(p => p.id === msg.sender_id);
+              const senderUsername = senderProfile?.username || (isMe ? 'Me' : chatFriend.username);
               return (
                 <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <span className="text-[10px] text-slate-500 font-mono mb-0.5 px-1">
