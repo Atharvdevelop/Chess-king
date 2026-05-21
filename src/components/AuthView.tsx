@@ -91,7 +91,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   const [showPassword, setShowPassword] = useState(false);
 
   // Sign In fields
-  const [signInEmail, setSignInEmail] = useState('');
+  const [signInIdentifier, setSignInIdentifier] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
 
   // Register fields
@@ -118,23 +118,40 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
-    if (!signInEmail.trim() || !signInPassword) return;
+    const identifier = signInIdentifier.trim();
+    if (!identifier || !signInPassword) return;
     setLoading(true);
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: signInEmail.trim(),
+      let emailAddress = identifier;
+
+      if (!identifier.includes('@')) {
+        // Run a quick background query to resolve custom username to email
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('username', identifier)
+          .single();
+
+        if (error || !data || !data.email) {
+          throw new Error('No account found matching that username.');
+        }
+        emailAddress = data.email;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailAddress,
         password: signInPassword,
       });
       if (authError) throw authError;
-      if (!data.user) throw new Error('No user returned from Supabase.');
+      if (!authData.user) throw new Error('No user returned from Supabase.');
 
       const { data: profile } = await supabase
         .from('profiles')
         .select('username')
-        .eq('id', data.user.id)
+        .eq('id', authData.user.id)
         .single();
 
-      onAuthSuccess(data.user.id, profile?.username ?? 'Player');
+      onAuthSuccess(authData.user.id, profile?.username ?? 'Player');
     } catch (err: any) {
       setError(err.message ?? 'Sign in failed. Please try again.');
     } finally {
@@ -264,9 +281,9 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
               <h2 className="text-xl font-bold text-slate-800 mb-6">Sign In</h2>
               <form onSubmit={handleSignIn}>
                 <InputField
-                  id="si-email" type="email" label="Email address" icon={Mail}
-                  value={signInEmail} onChange={setSignInEmail}
-                  placeholder="you@example.com" loading={loading}
+                  id="si-email" type="text" label="Username or Email address" icon={Mail}
+                  value={signInIdentifier} onChange={setSignInIdentifier}
+                  placeholder="Enter your username or email..." loading={loading}
                 />
                 <InputField
                   id="si-password" type={showPassword ? 'text' : 'password'} label="Password" icon={Lock}
@@ -284,7 +301,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
                 </div>
                 <button
                   type="submit"
-                  disabled={loading || !signInEmail.trim() || !signInPassword}
+                  disabled={loading || !signInIdentifier.trim() || !signInPassword}
                   className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-semibold text-white
                     bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800
                     disabled:opacity-50 disabled:cursor-not-allowed
