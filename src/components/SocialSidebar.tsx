@@ -57,6 +57,7 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
   const [messages, setMessages] = useState<Message[]>([]);
   const [msgInput, setMsgInput] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = useState<SocialProfile | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -75,6 +76,23 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
         setLoadingPlayers(false);
       });
 
+    return () => { cancelled = true; };
+  }, [currentProfileId]);
+
+  // ── Load current user profile ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentProfileId) return;
+    let cancelled = false;
+    supabase
+      .from('profiles')
+      .select('id, username, full_name')
+      .eq('id', currentProfileId)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled && data) {
+          setCurrentUserProfile(data);
+        }
+      });
     return () => { cancelled = true; };
   }, [currentProfileId]);
 
@@ -181,7 +199,7 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
 
     // Subscribe to new messages between the two users
     chatChannelRef.current = supabase
-      .channel(`chat:${[currentProfileId, friend.id].sort().join('-')}`)
+      .channel('public:messages')
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'messages',
       }, (payload) => {
@@ -189,7 +207,12 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
         const relevant =
           (msg.sender_id === currentProfileId && msg.receiver_id === friend.id) ||
           (msg.sender_id === friend.id && msg.receiver_id === currentProfileId);
-        if (relevant) setMessages(prev => [...prev, msg]);
+        if (relevant) {
+          setMessages(prev => {
+            if (prev.some(m => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        }
       })
       .subscribe();
   };
@@ -467,12 +490,18 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
             )}
             {messages.map(msg => {
               const isMe = msg.sender_id === currentProfileId;
+              const senderUsername = msg.sender_id === currentProfileId
+                ? (currentUserProfile?.username || 'Me')
+                : chatFriend.username;
               return (
-                <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                  <span className="text-[10px] text-slate-500 font-mono mb-0.5 px-1">
+                    {senderUsername}
+                  </span>
                   <div className={`
                     max-w-[75%] px-3 py-2 rounded-2xl text-sm leading-snug
                     ${isMe
-                      ? 'bg-cyan-600/30 text-cyan-100 border border-cyan-500/30 rounded-br-sm shadow-[0_0_8px_rgba(6,182,212,0.1)]'
+                      ? 'bg-cyan-600/30 text-cyan-100 border border-cyan-500/30 rounded-br-sm shadow-[0_0_8px_rgba(6,182,212,0.15)]'
                       : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-bl-sm'}
                   `}>
                     {msg.body}
