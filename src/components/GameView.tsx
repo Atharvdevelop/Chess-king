@@ -3,7 +3,6 @@ import { Game, PieceColor, Position, Move } from '../types/chess';
 import { createInitialBoard, makeMove, algebraicToPosition } from '../lib/chessLogic';
 import { getGame, makeGameMove, subscribeToGame, getMoves, endGameOnTimeout } from '../lib/gameService';
 import ChessBoard from './ChessBoard';
-import Timer from './Timer';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
 
 interface GameViewProps {
@@ -228,171 +227,185 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
 
   const isWaiting = game.status === 'waiting';
 
-  const timersContent = !isWaiting && game.status === 'active' ? (
-    <>
-      <Timer
-        timeRemaining={blackTime}
-        isActive={game.current_turn === 'black'}
-        color="black"
-        playerUsername={game.black_player_username}
-        onTimeUp={() => handleTimeUp('black')}
-      />
-      <Timer
-        timeRemaining={whiteTime}
-        isActive={game.current_turn === 'white'}
-        color="white"
-        playerUsername={game.white_player_username}
-        onTimeUp={() => handleTimeUp('white')}
-      />
-    </>
-  ) : null;
+  useEffect(() => {
+    if (game?.status !== 'active') return;
+    if (whiteTime <= 0 && game.current_turn === 'white') {
+      handleTimeUp('white');
+    }
+    if (blackTime <= 0 && game.current_turn === 'black') {
+      handleTimeUp('black');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whiteTime, blackTime, game?.status, game?.current_turn]);
+
+  const formatTime = (timeInSecs: number) => {
+    const mins = Math.floor(timeInSecs / 60);
+    const secs = Math.floor(timeInSecs % 60);
+    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const amIWhite = playerColor === 'white' || playerColor === null;
+  const myUsername = amIWhite ? game.white_player_username : game.black_player_username;
+  const opponentUsername = amIWhite ? game.black_player_username : game.white_player_username;
+  const myTime = amIWhite ? whiteTime : blackTime;
+  const opponentTime = amIWhite ? blackTime : whiteTime;
+  const myColor = amIWhite ? 'white' : 'black';
+  const opponentColor = amIWhite ? 'black' : 'white';
+  const isMyTurn = game.current_turn === myColor;
+  const isOpponentTurn = game.current_turn === opponentColor;
+  const myTimeCritical = myTime < 10;
+  const opponentTimeCritical = opponentTime < 10;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            onClick={onBackToLobby}
-            className="flex items-center gap-2 text-white hover:text-slate-300 transition-colors font-semibold"
-          >
+    // Main screen wrapper: Forces everything to stay inside 100% of the browser window height
+    <div className="w-screen h-screen max-h-screen overflow-hidden bg-slate-950 flex flex-col lg:flex-row items-center justify-center p-4 gap-6 relative">
+      
+      {/* Top Bar for Back / Copy link */}
+      <div className="w-full flex items-center justify-between text-slate-300 absolute top-0 left-0 p-4 z-10 pointer-events-auto">
+         <button onClick={onBackToLobby} className="flex items-center gap-2 hover:text-white transition-colors font-semibold bg-slate-900/60 p-2 rounded-lg backdrop-blur shadow-lg shadow-black/20 border border-slate-800">
             <ArrowLeft className="w-5 h-5" />
-            Back to Lobby
+            <span className="hidden sm:inline">Back to Lobby</span>
           </button>
-
+          
           {isWaiting && (
-            <button
-              onClick={copyGameLink}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-5 h-5" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-5 h-5" />
-                  Share Game Link
-                </>
-              )}
-            </button>
+             <button onClick={copyGameLink} className="flex items-center gap-2 bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg transition-colors font-semibold backdrop-blur shadow-[0_0_12px_rgba(6,182,212,0.15)]">
+               {copied ? (
+                 <>
+                   <Check className="w-5 h-5" />
+                   Copied!
+                 </>
+               ) : (
+                 <>
+                   <Copy className="w-5 h-5" />
+                   Share Link
+                 </>
+               )}
+             </button>
+          )}
+      </div>
+
+      {/* LEFT SIDE: The Chessboard Workspace */}
+      <div className="flex flex-col items-center justify-center w-full max-w-full lg:w-auto h-auto mt-12 lg:mt-0 relative shrink-0">
+        
+        {/* Opponent Info Header */}
+        <div className="w-[80vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
+          <span className="font-medium text-sm flex items-center gap-2">
+            {opponentUsername}
+            <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 uppercase tracking-wider">Opponent</span>
+          </span>
+          <span className={`font-mono px-2 py-0.5 rounded border transition-colors ${
+              isOpponentTurn ? 'bg-cyan-900/30 border-cyan-500/50 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.3)]' : 'bg-slate-900 border-slate-800 text-slate-500'
+            } ${opponentTimeCritical ? 'animate-pulse text-red-400 border-red-500/50 bg-red-900/30' : ''}`}>
+            {formatTime(opponentTime)}
+          </span>
+        </div>
+
+        {/* THE FIXED BOARD: 80vmin ensures it never exceeds 80% of the available window height or width */}
+        <div className="w-[80vmin] h-[80vmin] max-w-full max-h-full aspect-square bg-slate-900 border-2 border-slate-800 rounded-lg shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden relative">
+          <ChessBoard
+            board={currentBoard || game.board_state}
+            currentTurn={game.current_turn}
+            playerColor={playerColor}
+            onMove={handleMove}
+            isActive={game.status === 'active' && currentViewIndex === -1}
+          />
+          
+          {isWaiting && (
+            <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-center p-4">
+              <div className="bg-cyan-950/50 border border-cyan-500/30 text-cyan-300 px-6 py-4 rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(6,182,212,0.1)]">
+                <p className="font-bold text-lg mb-1 tracking-wide">Waiting for opponent</p>
+                <p className="text-sm opacity-80 font-mono">Share the link to invite someone</p>
+              </div>
+            </div>
           )}
         </div>
 
-        <div className="flex flex-col lg:flex-row items-center justify-center gap-4 p-2 lg:p-8 w-full">
-          <div className="bg-white rounded-2xl shadow-2xl p-2 sm:p-4 lg:p-8 w-full lg:w-auto overflow-hidden">
-            {timersContent && (
-              <div className="mb-6 flex flex-row gap-2 sm:gap-4 w-full lg:hidden">
-                {timersContent}
-              </div>
-            )}
+        {/* Current User Info Footer */}
+        <div className="w-[80vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
+          <span className="font-medium text-sm flex items-center gap-2">
+            {myUsername}
+            <span className="text-[10px] bg-cyan-900/40 text-cyan-400 border border-cyan-800/50 px-1.5 py-0.5 rounded uppercase tracking-wider">You</span>
+          </span>
+          <span className={`font-mono px-2 py-0.5 rounded border transition-colors ${
+              isMyTurn ? 'bg-cyan-900/30 border-cyan-500/50 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.3)]' : 'bg-slate-900 border-slate-800 text-slate-500'
+            } ${myTimeCritical ? 'animate-pulse text-red-400 border-red-500/50 bg-red-900/30' : ''}`}>
+            {formatTime(myTime)}
+          </span>
+        </div>
+      </div>
 
-            <ChessBoard
-              board={currentBoard || game.board_state}
-              currentTurn={game.current_turn}
-              playerColor={playerColor}
-              onMove={handleMove}
-              isActive={game.status === 'active' && currentViewIndex === -1}
-            />
-
-            {game.status === 'finished' && (
-              <div className="mt-6">
-                <div className="bg-blue-900/40 text-blue-200 border border-blue-800 p-4 rounded-xl text-center">
-                  <p className="font-bold text-lg mb-1">Analysis Mode</p>
-                  <p className="text-sm">Use <kbd className="bg-slate-800 px-2 py-1 rounded text-white mx-1 border border-slate-600">←</kbd> and <kbd className="bg-slate-800 px-2 py-1 rounded text-white mx-1 border border-slate-600">→</kbd> arrow keys to navigate through the game.</p>
-                  {currentViewIndex !== -1 && (
-                    <p className="text-blue-300 mt-2 font-medium">Viewing Move {currentViewIndex + 1} of {movesData.length}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {isWaiting && (
-              <div className="mt-6 text-center">
-                <div className="inline-block bg-yellow-100 border-2 border-yellow-400 text-yellow-800 px-6 py-3 rounded-lg">
-                  <p className="font-semibold">Waiting for opponent to join...</p>
-                  <p className="text-sm mt-1">Share the game link to invite someone!</p>
-                </div>
-              </div>
-            )}
+      {/* RIGHT SIDE: Sidebar Widgets (Chat Panel + Moves Ledger) */}
+      {/* lg:h-[80vmin] locks the sidebar's height to match the board exactly, preventing screen layout shifts */}
+      <div className="w-full max-w-full lg:w-[320px] xl:w-[380px] h-[300px] lg:h-[80vmin] flex flex-col gap-4">
+        
+        <div className="flex-1 bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col overflow-hidden shadow-2xl">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">Move Log</span>
+            <span className={`text-[10px] font-mono px-2 py-1 rounded border ${
+              game.status === 'active' ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/30' : 'bg-slate-900 text-slate-500 border-slate-800'
+            }`}>
+              {game.status === 'active' ? 'IN PROGRESS' : game.status.toUpperCase()}
+            </span>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-2xl p-6 h-fit sticky top-8 w-full lg:w-[320px] shrink-0">
-            {timersContent && (
-              <div className="mb-6 hidden lg:flex flex-col gap-4 w-full">
-                {timersContent}
-              </div>
-            )}
-            <h3 className="text-xl font-bold text-slate-800 mb-4">Game Info</h3>
-
-            {game.status === 'active' && (
-              <div className="mb-4 pb-4 border-b border-slate-200">
-                <p className="text-sm font-semibold text-slate-600 mb-2">Players</p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-700">{game.white_player_username}</span>
-                    <span className={`text-xs px-2 py-1 rounded ${playerColor === 'white' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
-                      {playerColor === 'white' ? 'You' : 'Opponent'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-700">{game.black_player_username}</span>
-                    <span className={`text-xs px-2 py-1 rounded ${playerColor === 'black' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
-                      {playerColor === 'black' ? 'You' : 'Opponent'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-slate-600 mb-2">Move History</p>
-              <div className="space-y-1 max-h-96 overflow-y-auto">
-                {moveHistory.length === 0 ? (
-                  <p className="text-slate-500 text-sm">No moves yet</p>
-                ) : (
-                  moveHistory.map((move, idx) => {
-                    // currentViewIndex === -1 means we are viewing the latest/live state
-                    const isHighlighted = currentViewIndex === -1 
-                      ? idx === moveHistory.length - 1 
-                      : idx === currentViewIndex;
-
-                    return (
-                      <div 
-                        key={idx} 
-                        className={`text-sm font-mono px-3 py-2 rounded transition-colors ${
-                          isHighlighted 
-                            ? 'bg-blue-100 border border-blue-300 text-blue-800 font-bold' 
-                            : 'bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        {move}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+          {game.status === 'finished' && (
+            <div className="bg-cyan-950/30 text-cyan-300 border border-cyan-800/50 p-3 rounded-lg text-center mb-3 text-xs shadow-inner">
+              <p className="font-bold mb-1 tracking-wide">Analysis Mode</p>
+              <p className="opacity-80">Use <kbd className="bg-slate-800 px-1 py-0.5 rounded text-white border border-slate-600 shadow">←</kbd> <kbd className="bg-slate-800 px-1 py-0.5 rounded text-white border border-slate-600 shadow">→</kbd> to navigate</p>
+              {currentViewIndex !== -1 && (
+                <p className="text-cyan-400 mt-2 font-mono">Move {currentViewIndex + 1}/{movesData.length}</p>
+              )}
             </div>
+          )}
 
-            <div className="pt-4 border-t border-slate-200">
-              <p className="text-xs font-semibold text-slate-600 mb-2">Status</p>
-              <p className="text-sm font-semibold text-slate-700 capitalize">
-                {game.status === 'active' ? 'In Progress' : 'Waiting'}
-              </p>
-            </div>
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+            {moveHistory.length === 0 ? (
+              <p className="text-slate-600 text-xs font-mono text-center pt-8">No moves yet</p>
+            ) : (
+              moveHistory.map((move, idx) => {
+                const isHighlighted = currentViewIndex === -1 
+                  ? idx === moveHistory.length - 1 
+                  : idx === currentViewIndex;
+                return (
+                  <div 
+                    key={idx} 
+                    className={`text-xs font-mono px-3 py-2 rounded transition-colors cursor-default ${
+                      isHighlighted 
+                        ? 'bg-cyan-900/40 border border-cyan-800/60 text-cyan-300 font-bold shadow-[0_0_8px_rgba(6,182,212,0.1)]' 
+                        : 'bg-slate-950/50 text-slate-400 hover:bg-slate-900/80'
+                    }`}
+                  >
+                    {move}
+                  </div>
+                );
+              })
+            )}
           </div>
+        </div>
+        
+        {/* Chat Placeholder Widget */}
+        <div className="h-[120px] bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col items-center justify-center gap-2 shadow-2xl relative overflow-hidden group shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-t from-cyan-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <p className="text-xs font-mono text-slate-500 uppercase tracking-widest text-center">
+            Game Chat
+          </p>
+          <span className="text-[10px] text-cyan-600/50 font-mono bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-900/30">
+            Coming Soon
+          </span>
         </div>
       </div>
 
       {/* Winner Modal */}
       {showWinnerModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowWinnerModal(false)}>
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowWinnerModal(false)}>
           <div 
-            className="bg-slate-800 rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center border border-slate-700 transform transition-all"
+            className="bg-slate-900 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)] p-8 max-w-sm w-full text-center border border-slate-800 transform transition-all relative overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
-            <h2 className="text-3xl font-bold text-white mb-3">Game Over</h2>
-            <div className="text-xl text-blue-200 mb-8 font-medium">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-60"></div>
+            
+            <h2 className="text-3xl font-extrabold text-white mb-2 tracking-tight">Game Over</h2>
+            <div className="text-lg text-cyan-400 mb-8 font-mono font-medium tracking-wide">
               {game.winner === 'draw' 
                 ? "It's a Draw!" 
                 : `${game.winner === 'white' ? game.white_player_username : game.black_player_username} wins by ${game.winner === 'white' ? 'Checkmate' : 'Checkmate'}!`}
@@ -400,13 +413,13 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
             
             <button
               onClick={() => setShowWinnerModal(false)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors w-full shadow-lg shadow-blue-900/20"
+              className="bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/50 text-cyan-400 font-bold font-mono tracking-widest uppercase py-3 px-6 rounded-xl transition-all w-full shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:shadow-[0_0_20px_rgba(6,182,212,0.25)]"
             >
               Analyze Game
             </button>
             <button
               onClick={onBackToLobby}
-              className="mt-3 bg-transparent hover:bg-slate-700 text-slate-300 font-medium py-3 px-6 rounded-xl transition-colors w-full"
+              className="mt-3 bg-slate-800/50 hover:bg-slate-800 text-slate-400 font-mono font-bold tracking-widest uppercase text-xs py-3 px-6 rounded-xl transition-colors w-full border border-slate-700 hover:border-slate-600"
             >
               Return to Lobby
             </button>
