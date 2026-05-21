@@ -152,8 +152,8 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
         .single();
 
       onAuthSuccess(authData.user.id, profile?.username ?? 'Player');
-    } catch (err: any) {
-      setError(err.message ?? 'Sign in failed. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -196,8 +196,8 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
         setSuccess('Account created! Check your email to confirm your address, then sign in.');
         switchMode('signin');
       }
-    } catch (err: any) {
-      setError(err.message ?? 'Registration failed. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -217,8 +217,8 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
       if (resetError) throw resetError;
       setSuccess('Recovery email sent! Check your inbox to reset your password.');
       setForgotEmail('');
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to send recovery email.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send recovery email.');
     } finally {
       setLoading(false);
     }

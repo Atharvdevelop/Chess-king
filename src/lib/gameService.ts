@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Game, Player, Move, PieceColor, Position, Challenge, BoardState } from '../types/chess';
+import { Game, Player, Move, PieceColor, Position, Challenge } from '../types/chess';
 import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isCheckmate, isStalemate, isKingInCheck } from './chessLogic';
 
 // --- 1. PRESENCE & STATE MANAGEMENT ---

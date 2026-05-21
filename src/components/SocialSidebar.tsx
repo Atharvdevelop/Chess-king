@@ -110,7 +110,7 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
         `)
         .or(`sender_id.eq.${currentProfileId},receiver_id.eq.${currentProfileId}`);
 
-      const all: FriendRequest[] = (requests ?? []).map((r: any) => ({
+      const all: FriendRequest[] = (requests ?? []).map((r) => ({
         ...r,
         sender: Array.isArray(r.sender) ? r.sender[0] : r.sender,
         receiver: Array.isArray(r.receiver) ? r.receiver[0] : r.receiver,
@@ -132,6 +132,7 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadFriends(); }, [currentProfileId]);
 
   // ── Realtime: watch friend_requests ────────────────────────────────────────
@@ -144,6 +145,7 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
       .subscribe();
 
     return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProfileId]);
 
   // ── Friendship helpers ──────────────────────────────────────────────────────

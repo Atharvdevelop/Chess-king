@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Game, Player, PieceColor, Position, Move } from '../types/chess';
+import { Game, PieceColor, Position, Move } from '../types/chess';
 import { createInitialBoard, makeMove, algebraicToPosition } from '../lib/chessLogic';
 import { getGame, makeGameMove, subscribeToGame, getMoves, endGameOnTimeout } from '../lib/gameService';
 import ChessBoard from './ChessBoard';

@@ -104,8 +104,8 @@ export default function ProfileView({
 
         if (gErr) throw gErr;
         if (!cancelled) setMatches(games ?? []);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message ?? 'Failed to load profile.');
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load profile.');
       } finally {
         if (!cancelled) setLoading(false);
       }
