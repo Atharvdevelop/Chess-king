@@ -872,10 +872,205 @@
         }
       });
 
-      // ── Cleanup on page unload ───────────────────────────────
+      // ══════════════════════════════════════════════════════
+      //  OPEN CHALLENGE — FIND MATCH FLOW
+      // ══════════════════════════════════════════════════════
+
+      const findMatchBtn       = document.getElementById('find-match-btn');
+      const waitingOverlay     = document.getElementById('waiting-overlay');
+      const cancelChallengeBtn = document.getElementById('cancel-challenge-btn');
+      const waitingStatusTitle = document.getElementById('waiting-status-title');
+      const waitingStatusDesc  = document.getElementById('waiting-status-desc');
+
+      let openQueueId      = null;  // UUID of our matchmaking_queue row
+      let openQueueChannel = null;  // Realtime channel watching for game_id
+      let openElapsedTimer = null;  // Seconds-elapsed ticker
+      let openElapsedSecs  = 0;
+      let openTimeFormat   = null;  // format string kept for display
+
+      // ── Show / hide the inline waiting overlay ───────────────────
+      function showOpenWaiting(fmt) {
+        waitingStatusTitle.textContent = 'Searching for Opponent';
+        waitingStatusDesc.textContent  = `Waiting for a ${fmt} match…`;
+        waitingOverlay.classList.remove('hidden');
+        findMatchBtn.disabled = true;
+        openElapsedSecs = 0;
+        clearInterval(openElapsedTimer);
+        openElapsedTimer = setInterval(() => {
+          openElapsedSecs++;
+          const t = openElapsedSecs < 60
+            ? `${openElapsedSecs}s`
+            : `${Math.floor(openElapsedSecs / 60)}m ${openElapsedSecs % 60}s`;
+          waitingStatusDesc.textContent = `Waiting for a ${fmt} match… ${t}`;
+        }, 1000);
+      }
+
+      function hideOpenWaiting() {
+        waitingOverlay.classList.add('hidden');
+        findMatchBtn.disabled = false;
+        findMatchBtn.querySelector('span').textContent = 'Find Match';
+        clearInterval(openElapsedTimer);
+      }
+
+      function teardownOpenChannel() {
+        if (openQueueChannel && typeof supabase !== 'undefined') {
+          supabase.removeChannel(openQueueChannel);
+          openQueueChannel = null;
+        }
+      }
+
+      // ── Cancel: remove our queue row and reset UI ────────────────
+      async function cancelOpenMatch() {
+        teardownOpenChannel();
+        hideOpenWaiting();
+        if (openQueueId && typeof supabase !== 'undefined') {
+          await supabase
+            .from('matchmaking_queue')
+            .delete()
+            .eq('id', openQueueId);
+          openQueueId = null;
+        }
+      }
+
+      cancelChallengeBtn.addEventListener('click', cancelOpenMatch);
+
+      // ── Main handler ─────────────────────────────────────────────
+      findMatchBtn.addEventListener('click', async () => {
+        if (typeof supabase === 'undefined') {
+          alert('Connection error — please refresh and try again.');
+          return;
+        }
+
+        // Resolve selected time format from the card grid
+        const selectedCard = document.querySelector('#time-formats-container .time-card-selected');
+        let timeFormat = selectedCard ? selectedCard.getAttribute('data-format') : '1+0';
+        if (timeFormat === 'custom') {
+          const mins = parseInt(document.getElementById('custom-minutes').value, 10) || 10;
+          const inc  = parseInt(document.getElementById('custom-increment').value, 10) || 0;
+          timeFormat = `${mins}+${inc}`;
+        }
+        openTimeFormat = timeFormat;
+
+        findMatchBtn.disabled = true;
+        findMatchBtn.querySelector('span').textContent = 'Searching…';
+
+        try {
+          // 1. Resolve current user ─────────────────────────────────
+          const { data: { session }, error: sessErr } = await supabase.auth.getSession();
+          if (sessErr || !session) throw new Error('You are not logged in.');
+          const myId = session.user.id;
+
+          const { data: myProfile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', myId)
+            .single();
+          const myUsername = myProfile?.username || session.user.email.split('@')[0];
+
+          // 2. Query the queue for a waiting opponent ───────────────
+          //    Conditions: same format, not yet matched (game_id IS NULL), not self.
+          const { data: candidates, error: qErr } = await supabase
+            .from('matchmaking_queue')
+            .select('id, user_id, username')
+            .eq('time_format', timeFormat)
+            .is('game_id', null)
+            .neq('user_id', myId)
+            .order('created_at', { ascending: true })
+            .limit(1);
+
+          if (qErr) throw new Error(`Queue query failed: ${qErr.message}`);
+
+          if (candidates && candidates.length > 0) {
+            // ── MATCH FOUND — call the RPC ──────────────────────────
+            findMatchBtn.querySelector('span').textContent = 'Match Found! Starting…';
+
+            const opponent = candidates[0];
+
+            const { data: gameId, error: rpcErr } = await supabase
+              .rpc('initialize_open_match', {
+                p_queue_row_id:    opponent.id,
+                p_joiner_id:       myId,
+                p_joiner_username: myUsername,
+                p_time_format:     timeFormat
+              });
+
+            if (rpcErr) {
+              // Row was claimed by a third player in the same instant —
+              // fall through to the "join queue" path instead.
+              if (rpcErr.message && rpcErr.message.includes('match_already_claimed')) {
+                console.warn('[open-challenge] race: row already claimed, joining queue instead');
+                throw new Error('That spot was just taken — you\'ve been added to the queue. Hang tight!');
+              }
+              throw new Error(`Failed to start game: ${rpcErr.message}`);
+            }
+
+            // Navigate the joiner directly to the new game
+            window.location.href = `/pages/play.html?gameId=${gameId}`;
+
+          } else {
+            // ── NO MATCH — INSERT SELF INTO QUEUE ──────────────────
+            //    upsert handles the edge case where we still have a stale row.
+            const { data: queueRow, error: insErr } = await supabase
+              .from('matchmaking_queue')
+              .upsert(
+                { user_id: myId, username: myUsername, time_format: timeFormat, game_id: null },
+                { onConflict: 'user_id', ignoreDuplicates: false }
+              )
+              .select('id')
+              .single();
+
+            if (insErr) throw new Error(`Failed to join queue: ${insErr.message}`);
+            openQueueId = queueRow.id;
+
+            showOpenWaiting(timeFormat);
+
+            // 3. Realtime: watch for our queue row being UPDATE'd with a game_id.
+            //    This fires the instant the joiner's RPC stamps our row.
+            openQueueChannel = supabase
+              .channel(`open-queue-${openQueueId}`)
+              .on(
+                'postgres_changes',
+                {
+                  event:  'UPDATE',
+                  schema: 'public',
+                  table:  'matchmaking_queue',
+                  filter: `id=eq.${openQueueId}`
+                },
+                (payload) => {
+                  const row = payload.new;
+                  if (row && row.game_id) {
+                    // We've been matched — navigate to the game
+                    teardownOpenChannel();
+                    clearInterval(openElapsedTimer);
+                    window.location.href = `/pages/play.html?gameId=${row.game_id}`;
+                  }
+                }
+              )
+              .subscribe((status) => {
+                console.log(`[open-queue] realtime: ${status}`);
+              });
+          }
+
+        } catch (err) {
+          console.error('[open-challenge] error:', err);
+          // Show error inside the overlay title if it's visible, else reset
+          waitingStatusTitle.textContent = 'Error';
+          waitingStatusDesc.textContent  = err.message;
+          // If we ended up in the overlay, leave it visible so user can cancel;
+          // otherwise just re-enable the button.
+          if (waitingOverlay.classList.contains('hidden')) {
+            findMatchBtn.disabled = false;
+            findMatchBtn.querySelector('span').textContent = 'Find Match';
+          }
+        }
+      });
+
+      // ── Cleanup on page unload ───────────────────────────────────
       window.addEventListener('beforeunload', () => {
         teardownWaitingChannel();
+        teardownOpenChannel();
         clearInterval(elapsedTimer);
+        clearInterval(openElapsedTimer);
       });
     });
   </script>
