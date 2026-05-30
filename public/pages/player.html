@@ -4,13 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Player Profile | Chess King</title>
-  <meta name="description" content="Player Profile - Chess King">
-
+  
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
+  
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -18,10 +17,12 @@
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: { sans: ['Outfit', 'sans-serif'] },
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          },
           colors: {
             slate: {
-              950: '#030712'
+              950: '#030712',
             }
           }
         }
@@ -29,46 +30,181 @@
     }
   </script>
 
-  <!-- Global Styles -->
+  <!-- Custom styles / animations -->
   <style>
     body {
       font-family: 'Outfit', sans-serif;
-      background-image:
-        radial-gradient(circle at top right, rgba(99,102,241,0.07), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(6,182,212,0.05), transparent 45%);
+      background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 45%);
     }
-
     .glass-panel {
-      background: rgba(15,23,42,0.65);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid rgba(51,65,85,0.5);
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
     }
   </style>
 
-  <!-- Supabase JS Library CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Global Shared Auth Guard -->
+  <script type="module" src="/src/lib/authGuard.ts"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col justify-between p-6">
-  <div class="max-w-4xl mx-auto w-full">
-    <!-- Navbar / Header -->
-    <header class="flex items-center justify-between py-4 border-b border-slate-900 mb-8">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center font-bold">♔</div>
-        <span class="font-extrabold text-lg tracking-tight">Chess King</span>
-      </div>
-      <nav class="flex items-center gap-4 text-sm font-semibold text-slate-400">
-        <a href="lobby.html" class="hover:text-white transition-colors">Lobby</a>
-        <a href="challenge.html" class="hover:text-white transition-colors">Challenges</a>
-        <a href="player.html" class="text-white">Profile</a>
-      </nav>
-    </header>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
 
-    <!-- Main Content Panel -->
-    <main class="glass-panel rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-      <h1 class="text-2xl font-bold mb-4">Player Profile</h1>
-      <p class="text-slate-400 text-sm">View user statistics, match history, and account settings.</p>
-    </main>
-  </div>
+  <!-- Header Navigation -->
+  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/pages/lobby.html" class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-violet-600 to-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+            </svg>
+          </div>
+          <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Chess King</span>
+        </a>
+      </div>
+
+      <nav class="hidden md:flex items-center gap-6">
+        <a href="/pages/lobby.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">Lobby</a>
+        <a href="/pages/challenge.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">Create Challenge</a>
+        <a href="/pages/player.html" class="text-violet-400 font-medium text-sm transition-colors px-3 py-2 rounded-md bg-violet-500/10">My Profile</a>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <!-- User Badge -->
+        <div id="user-badge" class="hidden sm:flex items-center gap-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
+          <div class="w-6.5 h-6.5 rounded-full bg-violet-600/30 flex items-center justify-center text-xs font-semibold text-violet-300" id="user-avatar-placeholder">U</div>
+          <span class="text-xs font-medium text-slate-300" id="user-display-name">Username</span>
+          <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-mono" id="user-display-rating">1200 ELO</span>
+        </div>
+
+        <button id="logout-btn" class="text-xs font-medium text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/30 px-3 py-1.5 rounded-lg transition-all duration-200 bg-slate-900/50">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col gap-6">
+    
+    <!-- Profile Card Block -->
+    <div class="glass-panel rounded-3xl p-8 relative overflow-hidden flex flex-col md:flex-row items-center gap-8 shadow-2xl">
+      <div class="absolute top-0 right-0 w-64 h-64 bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Avatar Big -->
+      <div class="w-24 h-24 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-4xl font-extrabold text-white shadow-xl shadow-violet-600/20" id="profile-avatar">
+        A
+      </div>
+
+      <div class="flex-1 text-center md:text-left space-y-2">
+        <div class="flex flex-col md:flex-row md:items-center gap-2 justify-center md:justify-start">
+          <h1 class="text-2xl md:text-3xl font-black text-white" id="profile-username">Atharv</h1>
+          <span class="inline-block self-center px-2.5 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-bold uppercase tracking-wider" id="profile-status">
+            Online
+          </span>
+        </div>
+        <p class="text-slate-400 text-sm max-w-md">Chess champion and strategic thinker. Ready to accept challenges.</p>
+        <div class="flex flex-wrap gap-4 text-xs text-slate-500 justify-center md:justify-start">
+          <span>Joined May 2026</span>
+        </div>
+      </div>
+
+      <!-- Quick Stats Card -->
+      <div class="grid grid-cols-3 gap-6 bg-slate-900/60 border border-slate-800 p-6 rounded-2xl shrink-0 w-full md:w-auto text-center">
+        <div>
+          <div class="text-2xl font-black text-white" id="stat-elo">1500</div>
+          <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">ELO</div>
+        </div>
+        <div class="border-x border-slate-800 px-4">
+          <div class="text-2xl font-black text-emerald-400" id="stat-wins">0</div>
+          <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Wins</div>
+        </div>
+        <div>
+          <div class="text-2xl font-black text-white" id="stat-games">0</div>
+          <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Played</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Match History & Achievements columns -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Match History List -->
+      <div class="lg:col-span-2 glass-panel rounded-3xl p-6 md:p-8 flex flex-col min-h-[400px]">
+        <h2 class="text-lg font-bold text-white mb-6">Recent Games</h2>
+        
+        <div class="flex-1 overflow-y-auto space-y-4 pr-1" id="profile-match-history">
+          <!-- Populated by JS -->
+          <div class="text-slate-500 text-sm text-center py-20">
+            No match history logged for this player yet.
+          </div>
+        </div>
+      </div>
+
+      <!-- Achievements / Details -->
+      <div class="glass-panel rounded-3xl p-6 md:p-8 space-y-6">
+        <h2 class="text-lg font-bold text-white">Achievements</h2>
+
+        <div class="space-y-4" id="achievements-list">
+          <div class="flex items-start gap-4 p-3 bg-slate-900/40 border border-slate-800 rounded-xl">
+            <div class="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center text-xl shrink-0 border border-yellow-500/20">🏆</div>
+            <div>
+              <h4 class="text-sm font-semibold text-white">First Blood</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Win your first online multiplayer match.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4 p-3 bg-slate-900/40 border border-slate-800 rounded-xl">
+            <div class="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center text-xl shrink-0 border border-violet-500/20">🔥</div>
+            <div>
+              <h4 class="text-sm font-semibold text-white">Super Blitz</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Play 5 Blitz matches in a row.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4 p-3 bg-slate-900/40 border border-slate-800 rounded-xl opacity-40">
+            <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center text-xl shrink-0 border border-cyan-500/20">👑</div>
+            <div>
+              <h4 class="text-sm font-semibold text-white">Grandmaster</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Reach an ELO rating of 2000+.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <footer class="border-t border-slate-900 py-6 bg-slate-950/60 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+      Chess King © 2026. Made with passion for chess enthusiasts.
+    </div>
+  </footer>
+
+  <!-- Placeholder script for profile card logic -->
+  <script type="text/javascript" id="profile-logic-script">
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("Player profile template loaded. Awaiting client implementation.");
+      
+      const logoutBtn = document.getElementById("logout-btn");
+      if (logoutBtn && supabase) {
+        logoutBtn.addEventListener("click", async () => {
+          await supabase.auth.signOut();
+          window.location.href = '/index.html';
+        });
+      }
+
+      // Parse target user from URL query params
+      const urlParams = new URLSearchParams(window.location.search);
+      const usernameParam = urlParams.get('u');
+      
+      if (usernameParam) {
+        document.getElementById("profile-username").textContent = usernameParam;
+        document.getElementById("profile-avatar").textContent = usernameParam.charAt(0).toUpperCase();
+      }
+    });
+  </script>
 </body>
 </html>

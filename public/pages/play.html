@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Live Arena | Chess King</title>
-  <meta name="description" content="Live Arena - Chess King">
+  <meta name="description" content="Play a live chess match on Chess King — real-time board, clocks, and move history.">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,56 +19,1212 @@
       theme: {
         extend: {
           fontFamily: { sans: ['Outfit', 'sans-serif'] },
-          colors: {
-            slate: {
-              950: '#030712'
-            }
-          }
+          colors:     { slate: { 950: '#030712' } }
         }
       }
     }
   </script>
 
-  <!-- Global Styles -->
   <style>
+    /* ── Base ──────────────────────────────────────────────────────────────── */
     body {
       font-family: 'Outfit', sans-serif;
       background-image:
-        radial-gradient(circle at top right, rgba(99,102,241,0.07), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(6,182,212,0.05), transparent 45%);
+        radial-gradient(circle at top right,  rgba(99,102,241,0.07), transparent 40%),
+        radial-gradient(circle at bottom left, rgba(6,182,212,0.05),  transparent 45%);
     }
 
+    /* ── Glass panels ───────────────────────────────────────────────────────── */
     .glass-panel {
       background: rgba(15,23,42,0.65);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid rgba(51,65,85,0.5);
     }
+
+    /* ── Board squares ──────────────────────────────────────────────────────── */
+    .sq-light { background-color: #ede8d0; }
+    .sq-dark  { background-color: #779556; }
+
+    /* Selection / highlight / last-move tints */
+    .sq-selected   { background-color: rgba(139,92,246,0.55) !important; }
+    .sq-legal      { position: relative; }
+    .sq-legal::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, rgba(0,0,0,0.25) 28%, transparent 29%);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .sq-legal.sq-capture::after {
+      background: radial-gradient(circle,
+        transparent 56%, rgba(0,0,0,0.22) 57%, rgba(0,0,0,0.22) 73%, transparent 74%);
+    }
+    .sq-last-from { background-color: rgba(205,210,106,0.55) !important; }
+    .sq-last-to   { background-color: rgba(205,210,106,0.75) !important; }
+    .sq-check     { background-color: rgba(220,38,38,0.55) !important; }
+
+    /* ── Piece ──────────────────────────────────────────────────────────────── */
+    .chess-piece {
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: transform 0.07s ease;
+      position: relative;
+      z-index: 2;
+      /* crisp drop shadow for legibility on both square colours */
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.55));
+      line-height: 1;
+    }
+    .chess-piece:active { cursor: grabbing; transform: scale(1.18); }
+    .chess-piece.enemy  { cursor: default; }
+    .chess-piece.enemy:active { transform: none; }
+
+    /* ── Coordinate labels ──────────────────────────────────────────────────── */
+    .coord-rank {
+      position: absolute; top: 2px; left: 3px;
+      font-size: 9px; font-weight: 700;
+      opacity: 0.55; pointer-events: none; line-height: 1;
+    }
+    .coord-file {
+      position: absolute; bottom: 2px; right: 3px;
+      font-size: 9px; font-weight: 700;
+      opacity: 0.55; pointer-events: none; line-height: 1;
+    }
+
+    /* ── Active clock highlight ─────────────────────────────────────────────── */
+    .clock-active {
+      border-color: rgba(139,92,246,0.6) !important;
+      box-shadow: 0 0 16px rgba(139,92,246,0.18);
+      color: #a78bfa !important;
+    }
+    .clock-low {
+      border-color: rgba(239,68,68,0.6) !important;
+      box-shadow: 0 0 14px rgba(239,68,68,0.18);
+      color: #f87171 !important;
+      animation: clockPulse 1s ease-in-out infinite;
+    }
+    @keyframes clockPulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.65; }
+    }
+
+    /* ── Move history rows ──────────────────────────────────────────────────── */
+    .move-row { display: flex; align-items: center; gap: 6px; }
+    .move-num { font-size: 10px; color: #475569; min-width: 22px; text-align: right; }
+    .move-san {
+      font-size: 11px; font-family: monospace; font-weight: 600;
+      padding: 2px 6px; border-radius: 4px;
+      cursor: default; transition: background 0.15s;
+    }
+    .move-san:hover { background: rgba(139,92,246,0.12); }
+    .move-san.white-move { color: #e2e8f0; }
+    .move-san.black-move { color: #94a3b8; }
+    .move-san.current-move {
+      background: rgba(139,92,246,0.2);
+      color: #c4b5fd;
+      border: 1px solid rgba(139,92,246,0.3);
+    }
+
+    /* ── Winner / end-game modal ────────────────────────────────────────────── */
+    #winner-modal { transition: opacity 0.25s ease; }
+    #winner-modal.hide { opacity: 0; pointer-events: none; }
+
+    /* ── Board enter animation ──────────────────────────────────────────────── */
+    @keyframes boardIn {
+      from { opacity: 0; transform: scale(0.96) translateY(8px); }
+      to   { opacity: 1; transform: scale(1)   translateY(0); }
+    }
+    #board-wrapper { animation: boardIn 0.35s cubic-bezier(.25,.8,.25,1) both; }
+
+    /* ── Loading skeleton ───────────────────────────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position:  400px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+      background-size: 400px 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+      border-radius: 6px;
+    }
+
+    /* ── Resign button ──────────────────────────────────────────────────────── */
+    #resign-btn { transition: all 0.2s; }
+    #resign-btn:hover {
+      box-shadow: 0 0 14px rgba(239,68,68,0.2);
+    }
   </style>
 
-  <!-- Supabase JS Library CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Global Shared Auth Guard -->
+  <script type="module" src="/src/lib/authGuard.ts"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col justify-between p-6">
-  <div class="max-w-4xl mx-auto w-full">
-    <!-- Navbar / Header -->
-    <header class="flex items-center justify-between py-4 border-b border-slate-900 mb-8">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center font-bold">♔</div>
-        <span class="font-extrabold text-lg tracking-tight">Chess King</span>
-      </div>
-      <nav class="flex items-center gap-4 text-sm font-semibold text-slate-400">
-        <a href="lobby.html" class="hover:text-white transition-colors">Lobby</a>
-        <a href="challenge.html" class="hover:text-white transition-colors">Challenges</a>
-        <a href="player.html" class="hover:text-white transition-colors">Profile</a>
-      </nav>
-    </header>
 
-    <!-- Main Content Panel -->
-    <main class="glass-panel rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-      <h1 class="text-2xl font-bold mb-4">Live Arena</h1>
-      <p class="text-slate-400 text-sm">Play live chess against online players with real-time timers and updates.</p>
-    </main>
+<!-- h-[100dvh] + overflow-hidden keeps entire arena in one viewport — no scroll -->
+<body class="bg-slate-950 text-slate-100 h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col antialiased select-none">
+
+  <!-- ░░ Header ░░ ─────────────────────────────────────────────────────────── -->
+  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md shrink-0 z-30">
+    <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+
+      <!-- Back to lobby -->
+      <a href="/pages/lobby.html"
+         class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors font-semibold text-sm shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        <span class="hidden sm:inline">Lobby</span>
+      </a>
+
+      <!-- Centre pill: room ID + time format -->
+      <div class="flex items-center gap-2 min-w-0">
+        <span id="game-room-label"
+              class="text-xs font-semibold tracking-wide font-mono bg-slate-900 px-3 py-1.5
+                     border border-slate-800 rounded-full text-slate-400 skeleton w-28 h-6">
+        </span>
+        <span id="game-format-pill"
+              class="hidden text-[10px] font-bold uppercase tracking-widest px-2.5 py-1
+                     rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">
+        </span>
+      </div>
+
+      <!-- Resign -->
+      <button id="resign-btn"
+              class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400
+                     border border-rose-500/30 px-4 py-1.5 rounded-lg font-semibold shrink-0 hidden">
+        Resign
+      </button>
+    </div>
+  </header>
+
+  <!-- ░░ Main arena — flex row on wide screens, column on small ░░ ─────────── -->
+  <main class="flex-1 flex flex-col xl:flex-row items-center justify-center
+               px-3 py-3 gap-4 xl:gap-6 min-h-0 overflow-hidden">
+
+    <!-- ── Board column ──────────────────────────────────────────────────── -->
+    <div id="board-column" class="flex flex-col items-center justify-center gap-1 shrink-0">
+
+      <!-- Opponent info bar -->
+      <div class="w-[80vmin] flex items-center justify-between px-1 py-1">
+        <div class="flex items-center gap-2">
+          <div id="opp-avatar"
+               class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700
+                      flex items-center justify-center text-xs font-bold text-slate-300">
+            ?
+          </div>
+          <span id="opp-username" class="font-semibold text-sm text-slate-200">Opponent</span>
+          <span id="opp-color-badge"
+                class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5
+                       rounded bg-slate-800 text-slate-500 border border-slate-700">
+          </span>
+        </div>
+        <!-- Opponent clock -->
+        <div id="opp-clock"
+             class="font-mono text-sm font-bold px-3 py-1.5 rounded-lg border
+                    bg-slate-900 border-slate-700 text-slate-400 tracking-widest
+                    transition-all duration-300 min-w-[5.5rem] text-center">
+          —
+        </div>
+      </div>
+
+      <!-- ── The chessboard ────────────────────────────────────────────────── -->
+      <div id="board-wrapper"
+           class="w-[80vmin] h-[80vmin] rounded-xl overflow-hidden relative
+                  shadow-[0_0_50px_rgba(0,0,0,0.7)] border-2 border-slate-800/80">
+
+        <!-- 8×8 grid — filled by JS -->
+        <div id="chessboard-grid"
+             class="grid grid-cols-8 grid-rows-8 w-full h-full"></div>
+
+        <!-- Loading overlay (shown until game data arrives) -->
+        <div id="board-loading"
+             class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col
+                    items-center justify-center z-20 gap-4">
+          <div class="w-12 h-12 rounded-full border-4 border-violet-500/30 border-t-violet-500 animate-spin"></div>
+          <p class="text-slate-400 text-sm font-medium">Loading game…</p>
+        </div>
+
+        <!-- Game-over dimmer (hidden; shown on game end) -->
+        <div id="board-ended-overlay"
+             class="hidden absolute inset-0 bg-slate-950/30 backdrop-blur-[2px] z-10 pointer-events-none">
+        </div>
+      </div>
+
+      <!-- My info bar -->
+      <div class="w-[80vmin] flex items-center justify-between px-1 py-1">
+        <div class="flex items-center gap-2">
+          <div id="my-avatar"
+               class="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/40
+                      flex items-center justify-center text-xs font-bold text-violet-300">
+            ?
+          </div>
+          <span id="my-username" class="font-semibold text-sm text-slate-200">You</span>
+          <span id="my-color-badge"
+                class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5
+                       rounded bg-slate-800 text-slate-500 border border-slate-700">
+          </span>
+        </div>
+        <!-- My clock -->
+        <div id="my-clock"
+             class="font-mono text-sm font-bold px-3 py-1.5 rounded-lg border
+                    bg-violet-950/20 border-violet-500/30 text-violet-400 tracking-widest
+                    transition-all duration-300 min-w-[5.5rem] text-center">
+          —
+        </div>
+      </div>
+
+    </div><!-- /board-column -->
+
+    <!-- ── Side panel ────────────────────────────────────────────────────── -->
+    <div class="w-full xl:w-[320px] flex flex-col gap-3 min-h-0
+                xl:h-[calc(80vmin+4.5rem)] shrink-0">
+
+      <!-- Move history ledger -->
+      <div class="flex-1 glass-panel rounded-2xl p-4 flex flex-col min-h-0 overflow-hidden">
+        <div class="flex items-center justify-between mb-3 shrink-0">
+          <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Move History</span>
+          <span id="game-status-pill"
+                class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full
+                       bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            Active
+          </span>
+        </div>
+
+        <div id="move-history-list"
+             class="flex-1 overflow-y-auto pr-0.5 space-y-0.5
+                    scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+          <p class="text-slate-600 text-xs text-center pt-8 font-mono">
+            No moves yet…
+          </p>
+        </div>
+      </div>
+
+      <!-- Game info card -->
+      <div class="glass-panel rounded-2xl p-4 shrink-0 space-y-2.5">
+        <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">Game Info</p>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400">Game ID</span>
+          <span id="info-game-id" class="text-[11px] font-mono text-slate-300 truncate max-w-[130px]">—</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400">Time Format</span>
+          <span id="info-format"   class="text-[11px] font-mono text-slate-300">—</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400">Turn</span>
+          <span id="info-turn"     class="text-[11px] font-semibold text-slate-200">—</span>
+        </div>
+      </div>
+
+    </div><!-- /side panel -->
+
+  </main>
+
+  <!-- ░░ Winner / Game-end Modal ░░ ─────────────────────────────────────── -->
+  <div id="winner-modal"
+       role="dialog" aria-modal="true" aria-labelledby="wm-title"
+       class="hide fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50
+              flex items-center justify-center p-4">
+    <div class="glass-panel max-w-sm w-full rounded-3xl p-8 text-center shadow-2xl
+                relative overflow-hidden">
+
+      <!-- Glow blobs -->
+      <div class="absolute -top-8 -right-8 w-36 h-36 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-8 -left-8 w-36 h-36 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Icon -->
+      <div id="wm-icon"
+           class="w-16 h-16 rounded-full bg-violet-600/10 border border-violet-500/20
+                  flex items-center justify-center mx-auto mb-5
+                  shadow-[0_0_18px_rgba(139,92,246,0.12)]">
+        <!-- Filled by JS -->
+      </div>
+
+      <p class="text-xs font-bold uppercase tracking-widest text-violet-400 mb-1" id="wm-eyebrow">Game Over</p>
+      <h2 class="text-2xl font-black text-white" id="wm-title">—</h2>
+      <p class="text-sm text-slate-400 mt-1.5 mb-6" id="wm-subtitle">—</p>
+
+      <a href="/pages/lobby.html"
+         class="block w-full bg-gradient-to-r from-violet-600 to-indigo-600
+                hover:from-violet-500 hover:to-indigo-500 text-white font-bold
+                py-3 px-6 rounded-xl transition-all shadow-lg shadow-violet-600/20
+                hover:shadow-violet-600/35 text-sm">
+        Back to Lobby
+      </a>
+      <a href="/pages/challenge.html"
+         class="block text-center mt-3 border border-slate-800 hover:border-slate-700
+                bg-slate-900/50 hover:bg-slate-900 text-slate-400 hover:text-white
+                font-bold py-3 px-6 rounded-xl transition-all text-xs">
+        Play Again
+      </a>
+    </div>
   </div>
+
+  <!-- ░░ Resign Confirmation Modal ░░ ──────────────────────────────────── -->
+  <div id="resign-modal"
+       class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50
+              flex items-center justify-center p-4">
+    <div class="glass-panel max-w-xs w-full rounded-2xl p-7 text-center shadow-2xl">
+      <p class="text-white font-bold text-lg mb-2">Resign Match?</p>
+      <p class="text-slate-400 text-sm mb-6">Your opponent will be declared the winner.</p>
+      <div class="flex gap-3">
+        <button id="resign-cancel-btn"
+                class="flex-1 border border-slate-700 hover:border-slate-600
+                       bg-slate-900/60 text-slate-300 font-semibold py-2.5 rounded-xl
+                       transition-all text-sm">
+          Cancel
+        </button>
+        <button id="resign-confirm-btn"
+                class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold
+                       py-2.5 rounded-xl transition-all text-sm
+                       shadow-lg shadow-rose-600/20">
+          Resign
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ░░ Main game script ░░ ──────────────────────────────────────────── -->
+  <script>
+  /* ─────────────────────────────────────────────────────────────────────────
+     Chess King — Live Arena
+     All game state is driven from Supabase via realtime postgres_changes.
+
+     Coordinate convention (board_state JSON keys):
+       "a1" … "h8"  — algebraic.  White is on ranks 1-2; Black on 7-8.
+
+     My colour is determined at load time from game.white_player_id vs my id.
+     When playing as Black the board is rendered flipped (rank 1 at top).
+  ───────────────────────────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', () => {
+
+    /* ── DOM refs ──────────────────────────────────────────────────────── */
+    const boardGrid        = document.getElementById('chessboard-grid');
+    const boardLoading     = document.getElementById('board-loading');
+    const boardEndedOverlay= document.getElementById('board-ended-overlay');
+    const winnerModal      = document.getElementById('winner-modal');
+    const wmIcon           = document.getElementById('wm-icon');
+    const wmEyebrow        = document.getElementById('wm-eyebrow');
+    const wmTitle          = document.getElementById('wm-title');
+    const wmSubtitle       = document.getElementById('wm-subtitle');
+    const resignModal      = document.getElementById('resign-modal');
+    const resignBtn        = document.getElementById('resign-btn');
+    const resignCancelBtn  = document.getElementById('resign-cancel-btn');
+    const resignConfirmBtn = document.getElementById('resign-confirm-btn');
+    const moveHistoryList  = document.getElementById('move-history-list');
+    const gameStatusPill   = document.getElementById('game-status-pill');
+    const gameRoomLabel    = document.getElementById('game-room-label');
+    const gameFormatPill   = document.getElementById('game-format-pill');
+    const infoGameId       = document.getElementById('info-game-id');
+    const infoFormat       = document.getElementById('info-format');
+    const infoTurn         = document.getElementById('info-turn');
+    const oppAvatar        = document.getElementById('opp-avatar');
+    const oppUsername      = document.getElementById('opp-username');
+    const oppColorBadge    = document.getElementById('opp-color-badge');
+    const oppClock         = document.getElementById('opp-clock');
+    const myAvatar         = document.getElementById('my-avatar');
+    const myUsernameEl     = document.getElementById('my-username');
+    const myColorBadge     = document.getElementById('my-color-badge');
+    const myClock          = document.getElementById('my-clock');
+
+    /* ── URL ────────────────────────────────────────────────────────────── */
+    const gameId = new URLSearchParams(window.location.search).get('gameId');
+
+    /* ── Piece Unicode map ──────────────────────────────────────────────── */
+    const PIECES = {
+      white: { king:'♔', queen:'♕', rook:'♖', bishop:'♗', knight:'♘', pawn:'♙' },
+      black: { king:'♚', queen:'♛', rook:'♜', bishop:'♝', knight:'♞', pawn:'♟' }
+    };
+
+    /* ── State ──────────────────────────────────────────────────────────── */
+    let game          = null;   // latest game row from DB
+    let myId          = null;
+    let myUsername    = null;
+    let myColor       = null;   // 'white' | 'black'
+    let flipped       = false;  // true when I play as Black
+    let selectedSq    = null;   // algebraic string e.g. 'e2'
+    let legalTargets  = [];     // algebraic strings
+    let lastFrom      = null;
+    let lastTo        = null;
+    let moveLog       = [];     // [{white:'e4', black:'e5'}, …]
+    let gameChannel   = null;
+    let clockTick     = null;   // setInterval id (100 ms)
+
+    // Wall-clock-diff clock state (mirrors GameView.tsx pattern)
+    // All three are updated atomically on every DB snapshot so the
+    // 100 ms tick loop stays drift-free across tab hibernation / moves.
+    let clockWhiteSnap   = 0;    // white_time_remaining (seconds) at snapshot
+    let clockBlackSnap   = 0;    // black_time_remaining (seconds) at snapshot
+    let clockActiveColor = null; // whose turn was active at snapshot
+    let clockSnapAt      = 0;    // Date.now() when snapshot was taken
+    const timeoutFiredRef = { current: false }; // one-shot latch: prevents double endGame write
+
+    /* ── Helpers ────────────────────────────────────────────────────────── */
+
+    function fmtMs(ms) {
+      if (ms < 0) ms = 0;
+      const totalSec = Math.ceil(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${m}:${String(s).padStart(2,'0')}`;
+    }
+
+    function algToRowCol(alg) {
+      // 'a1' → {row:7, col:0}  (row 0 = rank 8, row 7 = rank 1 in visual grid top-down)
+      const col = alg.charCodeAt(0) - 97;     // a=0 … h=7
+      const row = 8 - parseInt(alg[1], 10);   // rank 8 = row 0
+      return { row, col };
+    }
+
+    function rowColToAlg(row, col) {
+      return String.fromCharCode(97 + col) + String(8 - row);
+    }
+
+    function squareCellId(alg) { return `sq-${alg}`; }
+
+    /* ── Build empty board grid ─────────────────────────────────────────── */
+    function buildGrid() {
+      boardGrid.innerHTML = '';
+      for (let vRow = 0; vRow < 8; vRow++) {
+        for (let vCol = 0; vCol < 8; vCol++) {
+          // When flipped (Black perspective) rank 1 is top-left
+          const dataRow = flipped ? 7 - vRow : vRow;
+          const dataCol = flipped ? 7 - vCol : vCol;
+          const alg     = rowColToAlg(dataRow, dataCol);
+          const isLight = (dataRow + dataCol) % 2 === 0;
+
+          const cell = document.createElement('div');
+          cell.id        = squareCellId(alg);
+          cell.dataset.sq = alg;
+          cell.className = `relative flex items-center justify-center
+                            ${isLight ? 'sq-light' : 'sq-dark'} w-full h-full`;
+
+          // Coordinate labels
+          if (vCol === 0) {
+            const rank  = flipped ? vRow + 1 : 8 - vRow;
+            const label = document.createElement('span');
+            label.className   = `coord-rank ${isLight ? 'text-[#779556]' : 'text-[#ede8d0]'}`;
+            label.textContent = rank;
+            cell.appendChild(label);
+          }
+          if (vRow === 7) {
+            const file  = String.fromCharCode(97 + (flipped ? 7 - vCol : vCol));
+            const label = document.createElement('span');
+            label.className   = `coord-file ${isLight ? 'text-[#779556]' : 'text-[#ede8d0]'}`;
+            label.textContent = file;
+            cell.appendChild(label);
+          }
+
+          cell.addEventListener('click', () => onSquareClick(alg));
+          boardGrid.appendChild(cell);
+        }
+      }
+    }
+
+    /* ── Render pieces onto the built grid ──────────────────────────────── */
+    function renderPieces(boardState) {
+      // Clear all piece children (keep coord labels)
+      document.querySelectorAll('#chessboard-grid [data-sq]').forEach(cell => {
+        cell.querySelectorAll('.chess-piece').forEach(p => p.remove());
+        cell.classList.remove('sq-selected','sq-legal','sq-capture','sq-check',
+                              'sq-last-from','sq-last-to');
+      });
+
+      // Apply last-move tint
+      if (lastFrom) {
+        const fc = document.getElementById(squareCellId(lastFrom));
+        if (fc) fc.classList.add('sq-last-from');
+      }
+      if (lastTo) {
+        const tc = document.getElementById(squareCellId(lastTo));
+        if (tc) tc.classList.add('sq-last-to');
+      }
+
+      // Place pieces
+      Object.entries(boardState).forEach(([alg, piece]) => {
+        if (!piece) return;
+        const cell = document.getElementById(squareCellId(alg));
+        if (!cell) return;
+
+        const span = document.createElement('span');
+        const isMyPiece = piece.color === myColor;
+        span.className = `chess-piece text-[3.5vmin] leading-none z-10
+                          ${isMyPiece ? '' : 'enemy'}`;
+        span.textContent = PIECES[piece.color]?.[piece.type] ?? '?';
+        span.title       = `${piece.color} ${piece.type}`;
+        cell.appendChild(span);
+      });
+
+      // King-in-check highlight
+      const inCheckColor = game?.current_turn;
+      if (inCheckColor && isInCheck(boardState, inCheckColor)) {
+        const kingAlg = findKing(boardState, inCheckColor);
+        if (kingAlg) {
+          const kc = document.getElementById(squareCellId(kingAlg));
+          if (kc) kc.classList.add('sq-check');
+        }
+      }
+    }
+
+    /* ── Apply selection & legal-move dots ─────────────────────────────── */
+    function applySelection(boardState) {
+      // Clear previous dots
+      document.querySelectorAll('.sq-selected,.sq-legal,.sq-capture').forEach(el => {
+        el.classList.remove('sq-selected','sq-legal','sq-capture');
+      });
+
+      if (!selectedSq) return;
+
+      const selCell = document.getElementById(squareCellId(selectedSq));
+      if (selCell) selCell.classList.add('sq-selected');
+
+      legalTargets.forEach(alg => {
+        const tc = document.getElementById(squareCellId(alg));
+        if (!tc) return;
+        tc.classList.add('sq-legal');
+        if (boardState[alg]) tc.classList.add('sq-capture');  // capture ring
+      });
+    }
+
+    /* ── Pure-JS chess-logic helpers (mirrors chessLogic.ts) ───────────── */
+
+    function pieceAt(boardState, alg) {
+      return boardState[alg] || null;
+    }
+
+    function findKing(boardState, color) {
+      return Object.keys(boardState).find(k => {
+        const p = boardState[k];
+        return p && p.type === 'king' && p.color === color;
+      }) || null;
+    }
+
+    function isPathClearAlg(boardState, fromAlg, toAlg) {
+      const fc = fromAlg.charCodeAt(0) - 97, fr = parseInt(fromAlg[1],10);
+      const tc = toAlg.charCodeAt(0)   - 97, tr = parseInt(toAlg[1],10);
+      const dc = Math.sign(tc - fc), dr = Math.sign(tr - fr);
+      let c = fc + dc, r = fr + dr;
+      while (c !== tc || r !== tr) {
+        if (boardState[String.fromCharCode(97+c)+r]) return false;
+        c += dc; r += dr;
+      }
+      return true;
+    }
+
+    function rawCanAttack(boardState, fromAlg, toAlg, piece) {
+      if (fromAlg === toAlg) return false;
+      const target = boardState[toAlg];
+      if (target && target.color === piece.color) return false;
+
+      const fc = fromAlg.charCodeAt(0) - 97, fr = parseInt(fromAlg[1],10);
+      const tc = toAlg.charCodeAt(0)   - 97, tr = parseInt(toAlg[1],10);
+      const dc = tc - fc, dr = tr - fr;
+
+      switch (piece.type) {
+        case 'pawn': {
+          const dir = piece.color === 'white' ? 1 : -1;
+          return dr === dir && Math.abs(dc) === 1;
+        }
+        case 'rook':
+          return (fc === tc || fr === tr) && isPathClearAlg(boardState, fromAlg, toAlg);
+        case 'knight':
+          return (Math.abs(dc)===2&&Math.abs(dr)===1)||(Math.abs(dc)===1&&Math.abs(dr)===2);
+        case 'bishop':
+          return Math.abs(dc)===Math.abs(dr) && isPathClearAlg(boardState, fromAlg, toAlg);
+        case 'queen':
+          return ((fc===tc||fr===tr)||Math.abs(dc)===Math.abs(dr))
+                 && isPathClearAlg(boardState, fromAlg, toAlg);
+        case 'king':
+          return Math.abs(dc)<=1 && Math.abs(dr)<=1;
+        default: return false;
+      }
+    }
+
+    function isSquareAttackedBy(boardState, alg, byColor) {
+      return Object.keys(boardState).some(from => {
+        const p = boardState[from];
+        return p && p.color === byColor && rawCanAttack(boardState, from, alg, p);
+      });
+    }
+
+    function isInCheck(boardState, color) {
+      const kingAlg = findKing(boardState, color);
+      if (!kingAlg) return false;
+      const enemy = color === 'white' ? 'black' : 'white';
+      return isSquareAttackedBy(boardState, kingAlg, enemy);
+    }
+
+    function simulateMove(boardState, fromAlg, toAlg) {
+      const scratch = { ...boardState };
+      scratch[toAlg]   = scratch[fromAlg];
+      scratch[fromAlg] = null;
+      return scratch;
+    }
+
+    function pawnMoves(boardState, fromAlg, color) {
+      const moves = [];
+      const fc = fromAlg.charCodeAt(0) - 97;
+      const fr = parseInt(fromAlg[1], 10);
+      const dir   = color === 'white' ? 1 : -1;
+      const start = color === 'white' ? 2 : 7;
+
+      // One forward
+      const fwd = String.fromCharCode(97+fc) + (fr+dir);
+      if (!boardState[fwd]) {
+        moves.push(fwd);
+        // Two forward from start rank
+        if (fr === start) {
+          const fwd2 = String.fromCharCode(97+fc) + (fr+2*dir);
+          if (!boardState[fwd2]) moves.push(fwd2);
+        }
+      }
+      // Diagonal captures
+      [-1,1].forEach(dc => {
+        if (fc+dc < 0 || fc+dc > 7) return;
+        const capAlg = String.fromCharCode(97+fc+dc) + (fr+dir);
+        const cap    = boardState[capAlg];
+        if (cap && cap.color !== color) moves.push(capAlg);
+      });
+      return moves;
+    }
+
+    function getLegalMoves(boardState, fromAlg) {
+      const piece = boardState[fromAlg];
+      if (!piece || piece.color !== myColor) return [];
+      if (game && game.current_turn !== myColor) return [];
+
+      const moves = [];
+      if (piece.type === 'pawn') {
+        pawnMoves(boardState, fromAlg, piece.color).forEach(t => {
+          const after = simulateMove(boardState, fromAlg, t);
+          if (!isInCheck(after, piece.color)) moves.push(t);
+        });
+        return moves;
+      }
+
+      // All other pieces: iterate every target square
+      'abcdefgh'.split('').forEach(f => {
+        for (let r = 1; r <= 8; r++) {
+          const toAlg = f + r;
+          if (toAlg === fromAlg) return;
+          const target = boardState[toAlg];
+          if (target && target.color === piece.color) return;
+          if (!rawCanAttack(boardState, fromAlg, toAlg, piece)) return;
+          const after = simulateMove(boardState, fromAlg, toAlg);
+          if (!isInCheck(after, piece.color)) moves.push(toAlg);
+        }
+      });
+      return moves;
+    }
+
+    function hasLegalMoves(boardState, color) {
+      const squares = Object.keys(boardState);
+      for (const fromAlg of squares) {
+        const piece = boardState[fromAlg];
+        if (!piece || piece.color !== color) continue;
+
+        if (piece.type === 'pawn') {
+          const pm = pawnMoves(boardState, fromAlg, color);
+          for (const t of pm) {
+            const after = simulateMove(boardState, fromAlg, t);
+            if (!isInCheck(after, color)) return true;
+          }
+        } else {
+          for (const f of 'abcdefgh'.split('')) {
+            for (let r = 1; r <= 8; r++) {
+              const toAlg = f + r;
+              if (toAlg === fromAlg) continue;
+              const target = boardState[toAlg];
+              if (target && target.color === color) continue;
+              if (!rawCanAttack(boardState, fromAlg, toAlg, piece)) continue;
+              const after = simulateMove(boardState, fromAlg, toAlg);
+              if (!isInCheck(after, color)) return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    /* ── Click handler ──────────────────────────────────────────────────── */
+    function onSquareClick(alg) {
+      if (!game || game.status !== 'active') return;
+      if (game.current_turn !== myColor) return;
+
+      const boardState = game.board_state;
+      const piece      = boardState[alg];
+
+      // If a square is already selected
+      if (selectedSq) {
+        if (legalTargets.includes(alg)) {
+          // Execute move
+          submitMove(selectedSq, alg);
+          selectedSq   = null;
+          legalTargets = [];
+          applySelection(boardState);
+          return;
+        }
+        // Clicked own piece — switch selection
+        if (piece && piece.color === myColor) {
+          selectedSq   = alg;
+          legalTargets = getLegalMoves(boardState, alg);
+          applySelection(boardState);
+          return;
+        }
+        // Clicked empty / enemy (not legal) — deselect
+        selectedSq   = null;
+        legalTargets = [];
+        applySelection(boardState);
+        return;
+      }
+
+      // Nothing selected yet
+      if (piece && piece.color === myColor) {
+        selectedSq   = alg;
+        legalTargets = getLegalMoves(boardState, alg);
+        applySelection(boardState);
+      }
+    }
+
+    /* ── Submit move to Supabase RPC ────────────────────────────────────── */
+    async function submitMove(fromAlg, toAlg) {
+      if (typeof supabase === 'undefined') return;
+
+      const boardState    = game.board_state;
+      const piece         = boardState[fromAlg];
+      const capturedPiece = boardState[toAlg];
+
+      // Optimistic update — render immediately
+      const optimistic = { ...boardState };
+      let movedPiece   = { ...piece };
+      // Auto-promote pawn
+      if (movedPiece.type === 'pawn') {
+        if ((myColor === 'white' && toAlg[1] === '8') ||
+            (myColor === 'black' && toAlg[1] === '1')) {
+          movedPiece = { ...movedPiece, type: 'queen' };
+        }
+      }
+      optimistic[toAlg]   = movedPiece;
+      optimistic[fromAlg] = null;
+      lastFrom = fromAlg; lastTo = toAlg;
+
+      // Temporarily show optimistic board
+      const fakeTurn = myColor === 'white' ? 'black' : 'white';
+      renderPieces(optimistic);
+      updateInfoBar(fakeTurn);
+
+      const notation = `${fromAlg}-${toAlg}`;
+      const nextTurn = fakeTurn;
+
+      // Detect check / checkmate for the RPC call
+      const afterBoard  = optimistic;
+      const isCheck     = isInCheck(afterBoard, nextTurn);
+      const isCheckmate = isCheck && !hasLegalMoves(afterBoard, nextTurn);
+      const isStalemate = !isCheck && !hasLegalMoves(afterBoard, nextTurn);
+
+      try {
+        const { error } = await supabase.rpc('make_game_move', {
+          p_game_id:        gameId,
+          p_player_id:      myId,
+          p_new_board:      afterBoard,
+          p_move_notation:  notation,
+          p_piece:          piece.type,
+          p_captured_piece: capturedPiece ? capturedPiece.type : null,
+          p_is_check:       isCheck,
+          p_is_checkmate:   isCheckmate
+        });
+        if (error) {
+          console.error('[move] RPC error:', error.message);
+          // Roll back optimistic render
+          renderPieces(boardState);
+          lastFrom = null; lastTo = null;
+          updateInfoBar(game.current_turn);
+        } else {
+          // If checkmate or stalemate, end the game in the DB
+          if (isCheckmate) {
+            await supabase
+              .from('games')
+              .update({ status: 'finished', winner: myColor })
+              .eq('id', gameId);
+          } else if (isStalemate) {
+            await supabase
+              .from('games')
+              .update({ status: 'finished', winner: 'draw' })
+              .eq('id', gameId);
+          }
+        }
+      } catch (e) {
+        console.error('[move] exception:', e);
+      }
+    }
+
+    /* ── Update clock display ───────────────────────────────────────────── */
+    function updateClocks(wMs, bMs, currentTurn) {
+      const myMs  = myColor === 'white' ? wMs : bMs;
+      const oppMs = myColor === 'white' ? bMs : wMs;
+
+      myClock.textContent  = fmtMs(myMs);
+      oppClock.textContent = fmtMs(oppMs);
+
+      // Style: active clock highlighted
+      const iMyTurn = currentTurn === myColor;
+      myClock.classList.toggle('clock-active', iMyTurn);
+      oppClock.classList.toggle('clock-active', !iMyTurn);
+      myClock.classList.toggle('clock-low',    iMyTurn  && myMs  < 30_000);
+      oppClock.classList.toggle('clock-low',   !iMyTurn && oppMs < 30_000);
+    }
+
+    /* ── Anchor clock snapshot (call on every DB snapshot) ─────────────── */
+    // Re-anchoring instead of simple accumulation gives us two properties:
+    //   1. Drift-free: each tick computes elapsed = now - snapAt (no rounding error).
+    //   2. Stale-closure-free: the interval reads clockActiveColor each tick,
+    //      so it correctly follows turn changes without being restarted.
+    function anchorClock(wSec, bSec, activeTurn) {
+      clockWhiteSnap   = wSec;
+      clockBlackSnap   = bSec;
+      clockActiveColor = activeTurn;
+      clockSnapAt      = Date.now();
+    }
+
+    /* ── Start the 100 ms tick loop (call once after init) ─────────────── */
+    function startClock() {
+      clearInterval(clockTick);
+      clockTick = setInterval(() => {
+        if (!game || game.status !== 'active') return;
+
+        const elapsedSec = (Date.now() - clockSnapAt) / 1000;
+        const wMs = Math.max(0, (clockWhiteSnap - (clockActiveColor === 'white' ? elapsedSec : 0)) * 1000);
+        const bMs = Math.max(0, (clockBlackSnap - (clockActiveColor === 'black' ? elapsedSec : 0)) * 1000);
+
+        updateClocks(wMs, bMs, clockActiveColor);
+
+        // ── Timeout detection (one-shot latch) ───────────────────────────
+        if (!timeoutFiredRef.current) {
+          if (clockActiveColor === 'white' && wMs === 0) {
+            handleTimeUp('white');
+          } else if (clockActiveColor === 'black' && bMs === 0) {
+            handleTimeUp('black');
+          }
+        }
+      }, 100);
+    }
+
+    /* ── Write game-over for the colour that ran out of time ────────────── */
+    async function handleTimeUp(lostColor) {
+      if (typeof supabase === 'undefined' || !gameId) return;
+      // Safety check 1: game must still be active (server may have already resolved it)
+      if (!game || game.status !== 'active') return;
+      // Safety check 2: one-shot latch prevents a double-write race between the
+      // local 100ms tick loop and a near-simultaneous server-side move/resolution.
+      if (timeoutFiredRef.current) return;
+      timeoutFiredRef.current = true;
+
+      const winner = lostColor === 'white' ? 'black' : 'white';
+      console.log(`[clock] timeout — ${lostColor} ran out of time`);
+      await supabase
+        .from('games')
+        .update({ status: 'finished', winner })
+        .eq('id', gameId);
+    }
+
+    /* ── Update game-info sidebar items ─────────────────────────────────── */
+    function updateInfoBar(turn) {
+      infoTurn.textContent = turn === myColor
+        ? `Your turn (${myColor})`
+        : `Opponent's turn (${turn})`;
+      infoTurn.className = turn === myColor
+        ? 'text-[11px] font-semibold text-violet-300'
+        : 'text-[11px] font-semibold text-slate-400';
+    }
+
+    /* ── Build move-history list ─────────────────────────────────────────── */
+    function refreshMoveHistory() {
+      if (!moveLog.length) {
+        moveHistoryList.innerHTML =
+          '<p class="text-slate-600 text-xs text-center pt-8 font-mono">No moves yet…</p>';
+        return;
+      }
+
+      moveHistoryList.innerHTML = '';
+      moveLog.forEach((pair, i) => {
+        const row = document.createElement('div');
+        row.className = 'move-row py-0.5';
+
+        const numEl = document.createElement('span');
+        numEl.className   = 'move-num';
+        numEl.textContent = `${i+1}.`;
+        row.appendChild(numEl);
+
+        if (pair.white) {
+          const w = document.createElement('span');
+          w.className   = 'move-san white-move';
+          w.textContent = pair.white;
+          row.appendChild(w);
+        }
+        if (pair.black) {
+          const b = document.createElement('span');
+          b.className   = 'move-san black-move';
+          b.textContent = pair.black;
+          row.appendChild(b);
+        }
+
+        moveHistoryList.appendChild(row);
+      });
+
+      // Auto-scroll to bottom
+      moveHistoryList.scrollTop = moveHistoryList.scrollHeight;
+    }
+
+    /* ── Fetch move history from DB and rebuild log ─────────────────────── */
+    async function fetchMoveHistory() {
+      if (typeof supabase === 'undefined') return;
+      const { data } = await supabase
+        .from('moves')
+        .select('move_number, player_color, from_position, to_position, notation, is_check, is_checkmate')
+        .eq('game_id', gameId)
+        .order('move_number', { ascending: true });
+
+      if (!data) return;
+      moveLog = [];
+      data.forEach(m => {
+        const san = (m.notation || `${m.from_position}-${m.to_position}`)
+                  + (m.is_checkmate ? '#' : m.is_check ? '+' : '');
+        const idx = Math.floor((m.move_number - 1) / 2);
+        if (!moveLog[idx]) moveLog[idx] = {};
+        if (m.player_color === 'white') moveLog[idx].white = san;
+        else                             moveLog[idx].black = san;
+      });
+      refreshMoveHistory();
+    }
+
+    /* ── Apply a full game snapshot ─────────────────────────────────────── */
+    // fetchHistory=true only on the initial load and after realtime DB updates;
+    // optimistic renders pass fetchHistory=false to avoid redundant DB round-trips.
+    function applyGameSnapshot(g, fetchHistory = true) {
+      game = g;
+
+      const wSec = g.white_time_remaining ?? 600;
+      const bSec = g.black_time_remaining ?? 600;
+
+      // Re-anchor the wall-clock snapshot so the tick loop uses the authoritative
+      // server value rather than accumulating client-side drift.
+      anchorClock(wSec, bSec, g.current_turn);
+
+      // Reset the one-shot timeout latch whenever the server resolves the game
+      // (covers the race where the server writes before our local timeout fires).
+      if (g.status !== 'active') timeoutFiredRef.current = false;
+
+      renderPieces(g.board_state);
+      // Re-apply selection dots so they survive opponent-move re-renders
+      if (selectedSq && game.current_turn === myColor) {
+        applySelection(g.board_state);
+      }
+      updateClocks(wSec * 1000, bSec * 1000, g.current_turn);
+      updateInfoBar(g.current_turn);
+
+      if (g.status === 'active') {
+        // startClock is idempotent: only one interval is ever running
+        if (!clockTick) startClock();
+      } else {
+        clearInterval(clockTick);
+        clockTick = null;
+        handleGameOver(g);
+      }
+
+      if (fetchHistory) fetchMoveHistory();
+    }
+
+    /* ── Handle game-over state ─────────────────────────────────────────── */
+    function handleGameOver(g) {
+      clearInterval(clockTick);
+      resignBtn.classList.add('hidden');
+      boardEndedOverlay.classList.remove('hidden');
+
+      const statusPillColors = {
+        finished:  'bg-slate-500/10 text-slate-400 border-slate-500/20',
+        abandoned: 'bg-rose-500/10  text-rose-400  border-rose-500/20'
+      };
+      gameStatusPill.className = `text-[9px] font-bold uppercase tracking-wider px-2 py-0.5
+        rounded-full border ${statusPillColors[g.status] || ''}`;
+      gameStatusPill.textContent = g.status === 'finished' ? 'Finished' : g.status;
+
+      let eyebrow = 'Game Over';
+      let title   = '—';
+      let subtitle = '';
+      let iconHtml = '';
+      let endingReason = '';
+
+      if (g.winner !== 'draw' && g.winner) {
+        const isCheck = isInCheck(g.board_state, g.current_turn);
+        const isCheckmate = isCheck && !hasLegalMoves(g.board_state, g.current_turn);
+        const isTimeout = (g.white_time_remaining !== null && g.white_time_remaining <= 0) || 
+                          (g.black_time_remaining !== null && g.black_time_remaining <= 0);
+        if (isTimeout) {
+          endingReason = 'timeout';
+        } else if (isCheckmate) {
+          endingReason = 'checkmate';
+        }
+      }
+
+      if (g.winner === 'draw') {
+        eyebrow  = '½–½ Draw';
+        title    = 'Stalemate';
+        subtitle = 'Neither player wins.';
+        iconHtml = '🤝';
+      } else if (g.winner === myColor) {
+        eyebrow  = '🎉 Victory!';
+        title    = 'You Win!';
+        subtitle = endingReason
+          ? `You beat ${oppUsername.textContent} by ${endingReason}.`
+          : `You beat ${oppUsername.textContent} by resignation.`;
+        iconHtml = '♔';
+      } else if (g.winner) {
+        eyebrow  = 'Defeat';
+        title    = 'You Lost';
+        subtitle = endingReason
+          ? `${oppUsername.textContent} won by ${endingReason}.`
+          : `${oppUsername.textContent} won by resignation.`;
+        iconHtml = '♚';
+      } else {
+        // No winner set yet (edge case)
+        title    = 'Game Ended';
+        subtitle = '';
+      }
+
+      wmEyebrow.textContent = eyebrow;
+      wmTitle.textContent   = title;
+      wmSubtitle.textContent = subtitle;
+      wmIcon.innerHTML = `<span class="text-3xl">${iconHtml}</span>`;
+
+      // Show modal with a short delay for drama
+      setTimeout(() => { winnerModal.classList.remove('hide'); }, 800);
+    }
+
+    /* ── Bootstrap: load game & resolve my identity ─────────────────────── */
+    async function init() {
+      if (typeof supabase === 'undefined') {
+        console.error('[play] Supabase not ready');
+        return;
+      }
+
+      if (!gameId) {
+        boardLoading.querySelector('p').textContent = 'No game ID in URL.';
+        return;
+      }
+
+      // Resolve current user
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { window.location.href = '/index.html'; return; }
+      myId = session.user.id;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', myId)
+        .single();
+      myUsername = profile?.username || session.user.email.split('@')[0];
+
+      // Fetch the game row
+      const { data: g, error } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', gameId)
+        .single();
+
+      if (error || !g) {
+        boardLoading.querySelector('p').textContent = 'Game not found.';
+        return;
+      }
+
+      // Determine my colour
+      myColor = g.white_player_id === myId ? 'white' : 'black';
+      flipped = myColor === 'black';
+
+      // Resolve opponent info
+      const oppName = myColor === 'white' ? g.black_player_username : g.white_player_username;
+      const oppCol  = myColor === 'white' ? 'black' : 'white';
+
+      // Populate header & info bar
+      gameRoomLabel.textContent = `Room #${gameId.substring(0,8)}`;
+      gameRoomLabel.classList.remove('skeleton');
+      if (g.time_format) {
+        gameFormatPill.textContent = g.time_format;
+        gameFormatPill.classList.remove('hidden');
+        infoFormat.textContent = g.time_format;
+      }
+      infoGameId.textContent  = gameId.substring(0,13) + '…';
+
+      myUsernameEl.textContent     = myUsername;
+      myAvatar.textContent         = myUsername.charAt(0).toUpperCase();
+      myColorBadge.textContent     = myColor;
+      myColorBadge.className      += myColor === 'white'
+        ? ' bg-slate-200/10 text-slate-200 border-slate-400/30'
+        : ' bg-slate-800 text-slate-500 border-slate-700';
+
+      oppUsername.textContent      = oppName || 'Opponent';
+      oppAvatar.textContent        = (oppName || 'O').charAt(0).toUpperCase();
+      oppColorBadge.textContent    = oppCol;
+
+      // Show resign button only for active games
+      if (g.status === 'active') resignBtn.classList.remove('hidden');
+
+      // Build board and render; start the single clock tick loop
+      buildGrid();
+      applyGameSnapshot(g, true);   // true = fetch move history on initial load
+      startClock();                  // start once; applyGameSnapshot won't restart it
+      boardLoading.classList.add('hidden');
+
+      // ── Realtime: listen for game row updates ─────────────────────────
+      gameChannel = supabase
+        .channel(`arena-game-${gameId}`)
+        .on('postgres_changes', {
+          event:  'UPDATE',
+          schema: 'public',
+          table:  'games',
+          filter: `id=eq.${gameId}`
+        }, (payload) => {
+          const updated = payload.new;
+          if (!updated) return;
+          // Clear last-move highlight before applying new board so they update correctly
+          lastFrom = null; lastTo = null;
+          // fetchHistory=true: realtime move updates should refresh the move log
+          applyGameSnapshot(updated, true);
+        })
+        .subscribe(status => {
+          console.log(`[arena] realtime: ${status}`);
+        });
+    }
+
+    /* ── Resign flow ────────────────────────────────────────────────────── */
+    resignBtn.addEventListener('click', () => {
+      resignModal.classList.remove('hidden');
+    });
+    resignCancelBtn.addEventListener('click', () => {
+      resignModal.classList.add('hidden');
+    });
+    resignConfirmBtn.addEventListener('click', async () => {
+      resignModal.classList.add('hidden');
+      resignBtn.classList.add('hidden');
+      if (typeof supabase === 'undefined' || !gameId) return;
+      const winner = myColor === 'white' ? 'black' : 'white';
+      await supabase
+        .from('games')
+        .update({ status: 'finished', winner })
+        .eq('id', gameId);
+    });
+
+    /* ── Cleanup ────────────────────────────────────────────────────────── */
+    window.addEventListener('beforeunload', () => {
+      clearInterval(clockTick);
+      if (gameChannel && typeof supabase !== 'undefined') {
+        supabase.removeChannel(gameChannel);
+      }
+    });
+
+    /* ── Kick off ───────────────────────────────────────────────────────── */
+    init();
+  });
+  </script>
 </body>
 </html>
