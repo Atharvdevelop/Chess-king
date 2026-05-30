@@ -380,62 +380,64 @@
             }
           }
 
-          // Fetch pending incoming challenges
-          const { data: challenges, error: challengesErr } = await supabase
-            .from('challenges')
-            .select('id, challenger_id, challenged_id, status, created_at')
-            .eq('challenged_id', currentUserId)
-            .eq('status', 'pending');
+          // Fetch pending direct challenges aimed at this user
+          // (challenger already wrote the game row with status='pending')
+          const { data: pendingGames, error: pendingErr } = await supabase
+            .from('games')
+            .select('id, white_player_id, white_player_username, black_player_username, time_format, status, created_at')
+            .eq('black_player_id', currentUserId)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
 
-          if (!challengesErr && challenges) {
-            // Resolve usernames manually to avoid relational syntax issues
-            const resolvedChallenges = [];
-            for (const c of challenges) {
-              const { data: challengerProfile } = await supabase
-                .from('profiles')
-                .select('username')
-                .eq('id', c.challenger_id)
-                .single();
-              resolvedChallenges.push({
-                ...c,
-                challenger_username: challengerProfile ? challengerProfile.username : 'Unknown'
-              });
-            }
-
-            challengeCount.textContent = resolvedChallenges.length + (resolvedChallenges.length === 1 ? " waiting" : " waiting");
+          if (!pendingErr && pendingGames) {
+            challengeCount.textContent = pendingGames.length + ' waiting';
             challengesList.innerHTML = '';
-            
-            if (resolvedChallenges.length === 0) {
+
+            if (pendingGames.length === 0) {
               challengesList.innerHTML = `
                 <div class="text-sm text-slate-500 text-center py-10">
                   No pending challenges at the moment.
                 </div>
               `;
             } else {
-              resolvedChallenges.forEach(challenge => {
-                const card = document.createElement("div");
-                card.className = "flex justify-between items-center p-4 bg-violet-950/20 border border-violet-500/20 rounded-xl text-sm";
-                
-                const label = document.createElement("div");
-                label.innerHTML = `<span><strong>${challenge.challenger_username}</strong> challenges you!</span>`;
-                card.appendChild(label);
+              pendingGames.forEach(game => {
+                const FORMAT_LABELS = { '1+0': 'Bullet ⚡', '3+2': 'Blitz 🔥', '10+0': 'Rapid 🌿' };
+                const formatLabel  = FORMAT_LABELS[game.time_format] || game.time_format || 'Standard';
+                const challenger   = game.white_player_username || 'Unknown';
 
-                const actions = document.createElement("div");
-                actions.className = "flex gap-2";
+                const card = document.createElement('div');
+                card.id = `challenge-card-${game.id}`;
+                card.className = 'flex flex-col gap-3 p-4 bg-violet-950/25 border border-violet-500/25 rounded-xl text-sm transition-all';
+                card.innerHTML = `
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <div class="flex items-center gap-2 mb-0.5">
+                        <span class="w-2 h-2 rounded-full bg-violet-400 animate-ping inline-block"></span>
+                        <span class="font-bold text-white">${challenger}</span>
+                        <span class="text-slate-500 font-medium text-xs">challenges you!</span>
+                      </div>
+                      <span class="inline-block text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 text-violet-300 px-2 py-0.5 rounded-full border border-violet-500/20">
+                        ${formatLabel}
+                      </span>
+                    </div>
+                    <div class="flex gap-1.5 shrink-0">
+                      <button
+                        id="accept-${game.id}"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all shadow-md shadow-emerald-900/30"
+                      >Accept</button>
+                      <button
+                        id="decline-${game.id}"
+                        class="bg-rose-900/60 hover:bg-rose-600 border border-rose-500/30 hover:border-rose-500 text-rose-300 hover:text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all"
+                      >Decline</button>
+                    </div>
+                  </div>
+                `;
 
-                const acceptBtn = document.createElement("button");
-                acceptBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all shadow-md shrink-0";
-                acceptBtn.textContent = "Accept";
-                acceptBtn.addEventListener("click", () => handleAcceptChallenge(challenge, challenge.challenger_username));
-
-                const declineBtn = document.createElement("button");
-                declineBtn.className = "bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all shadow-md shrink-0";
-                declineBtn.textContent = "Decline";
-                declineBtn.addEventListener("click", () => handleDeclineChallenge(challenge.id));
-
-                actions.appendChild(acceptBtn);
-                actions.appendChild(declineBtn);
-                card.appendChild(actions);
+                // Wire up buttons after insertion
+                card.querySelector(`#accept-${game.id}`)
+                  .addEventListener('click', () => handleAcceptPendingGame(game));
+                card.querySelector(`#decline-${game.id}`)
+                  .addEventListener('click', () => handleDeclinePendingGame(game.id));
 
                 challengesList.appendChild(card);
               });
@@ -452,74 +454,96 @@
       // Periodically refresh lists every 5s
       const poller = setInterval(refreshLobbyData, 5000);
 
-      // Challenge Accepting handler
-      async function handleAcceptChallenge(challenge, challengerName) {
+      // ── Accept a pending direct-challenge game ────────────────
+      // The game row already exists (challenger created it with status='pending').
+      // We just flip status → 'active'. The challenger's realtime sub fires and
+      // redirects them; we redirect ourselves here.
+      async function handleAcceptPendingGame(game) {
+        const card = document.getElementById(`challenge-card-${game.id}`);
+        if (card) {
+          card.querySelector(`#accept-${game.id}`).disabled = true;
+          card.querySelector(`#accept-${game.id}`).textContent = 'Joining…';
+        }
         try {
-          const initialBoard = {
-            "a8": {"type": "rook", "color": "black"}, "b8": {"type": "knight", "color": "black"}, "c8": {"type": "bishop", "color": "black"}, "d8": {"type": "queen", "color": "black"}, "e8": {"type": "king", "color": "black"}, "f8": {"type": "bishop", "color": "black"}, "g8": {"type": "knight", "color": "black"}, "h8": {"type": "rook", "color": "black"},
-            "a7": {"type": "pawn", "color": "black"}, "b7": {"type": "pawn", "color": "black"}, "c7": {"type": "pawn", "color": "black"}, "d7": {"type": "pawn", "color": "black"}, "e7": {"type": "pawn", "color": "black"}, "f7": {"type": "pawn", "color": "black"}, "g7": {"type": "pawn", "color": "black"}, "h7": {"type": "pawn", "color": "black"},
-            "a2": {"type": "pawn", "color": "white"}, "b2": {"type": "pawn", "color": "white"}, "c2": {"type": "pawn", "color": "white"}, "d2": {"type": "pawn", "color": "white"}, "e2": {"type": "pawn", "color": "white"}, "f2": {"type": "pawn", "color": "white"}, "g2": {"type": "pawn", "color": "white"}, "h2": {"type": "pawn", "color": "white"},
-            "a1": {"type": "rook", "color": "white"}, "b1": {"type": "knight", "color": "white"}, "c1": {"type": "bishop", "color": "white"}, "d1": {"type": "queen", "color": "white"}, "e1": {"type": "king", "color": "white"}, "f1": {"type": "bishop", "color": "white"}, "g1": {"type": "knight", "color": "white"}, "h1": {"type": "rook", "color": "white"}
-          };
+          // Mark both players busy
+          await supabase.from('players')
+            .update({ status: 'busy' })
+            .in('id', [currentUserId, game.white_player_id]);
 
-          // 1. Create game entry
-          const { data: game, error: gameError } = await supabase
+          // Flip game status → active (triggers challenger's subscription)
+          const { error: updateErr } = await supabase
             .from('games')
-            .insert({
-              white_player_id: challenge.challenger_id,
-              black_player_id: currentUserId,
-              board_state: initialBoard,
-              current_turn: 'white',
-              status: 'active',
-              white_player_username: challengerName,
-              black_player_username: currentUsername
+            .update({
+              status:               'active',
+              black_player_username: currentUsername   // ensure our username is stored
             })
-            .select()
-            .single();
+            .eq('id', game.id);
 
-          if (gameError) throw gameError;
+          if (updateErr) throw updateErr;
 
-          // 2. Set both players to busy
-          await supabase.from('players').update({ status: 'busy' }).in('id', [currentUserId, challenge.challenger_id]);
-
-          // 3. Update the challenge status to accepted with the game ID
-          await supabase.from('challenges').update({ status: 'accepted', game_id: game.id }).eq('id', challenge.id);
-
-          // 4. Transport to game
+          // Navigate to the board
           window.location.href = `/pages/play.html?gameId=${game.id}`;
 
         } catch (e) {
-          console.error("Failed to accept challenge:", e);
-          alert("Error accepting challenge. Please try again.");
+          console.error('Failed to accept pending game:', e);
+          alert('Error accepting challenge. Please try again.');
+          if (card) {
+            card.querySelector(`#accept-${game.id}`).disabled = false;
+            card.querySelector(`#accept-${game.id}`).textContent = 'Accept';
+          }
         }
       }
 
-      async function handleDeclineChallenge(challengeId) {
+      // ── Decline a pending direct-challenge game ───────────────
+      async function handleDeclinePendingGame(gameId) {
+        const card = document.getElementById(`challenge-card-${gameId}`);
+        if (card) {
+          card.querySelector(`#decline-${gameId}`).disabled = true;
+          card.querySelector(`#decline-${gameId}`).textContent = 'Declining…';
+        }
         try {
-          await supabase.from('challenges').update({ status: 'rejected' }).eq('id', challengeId);
+          await supabase
+            .from('games')
+            .update({ status: 'rejected' })
+            .eq('id', gameId);
+
+          // Remove card from UI immediately
+          if (card) card.remove();
           await refreshLobbyData();
         } catch (e) {
-          console.error("Failed to reject challenge:", e);
+          console.error('Failed to decline pending game:', e);
         }
       }
 
-      // 3. Real-time Subscriptions
-      // Listen for challenges accepted by others (updates to challenges table where status = accepted)
+      // ── Real-time: watch games table for new/updated pending challenges ──
+      // We subscribe to both INSERT (new challenge arrives) and UPDATE
+      // (e.g. challenger cancels → status becomes 'cancelled') so the UI
+      // stays in sync without waiting for the 5-second poller.
       const challengesSubscription = supabase
-        .channel(`lobby-challenges-${currentUserId}`)
+        .channel(`lobby-pending-games-${currentUserId}`)
         .on('postgres_changes', {
-          event: '*',
+          event:  'INSERT',
           schema: 'public',
-          table: 'challenges'
+          table:  'games',
+          filter: `black_player_id=eq.${currentUserId}`
         }, async (payload) => {
-          const newChallenge = payload.new;
-          if (!newChallenge) return;
-
-          // If the challenge we created is accepted, redirect to play.html
-          if (newChallenge.challenger_id === currentUserId && newChallenge.status === 'accepted' && newChallenge.game_id) {
-            window.location.href = `/pages/play.html?gameId=${newChallenge.game_id}`;
-          } else {
-            // Otherwise, refresh challenges list
+          // A new direct challenge just arrived — refresh the list
+          if (payload.new && payload.new.status === 'pending') {
+            await refreshLobbyData();
+          }
+        })
+        .on('postgres_changes', {
+          event:  'UPDATE',
+          schema: 'public',
+          table:  'games',
+          filter: `black_player_id=eq.${currentUserId}`
+        }, async (payload) => {
+          const row = payload.new;
+          if (!row) return;
+          // Challenger cancelled while we were deciding
+          if (row.status === 'cancelled' || row.status === 'rejected') {
+            const card = document.getElementById(`challenge-card-${row.id}`);
+            if (card) card.remove();
             await refreshLobbyData();
           }
         })
