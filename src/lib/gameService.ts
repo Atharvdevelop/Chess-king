@@ -14,17 +14,18 @@ export async function updatePlayerStatus(playerId: string, status: 'online' | 'b
     .eq('id', playerId);
 }
 
+// FIXED: also refresh last_seen so the lobby_players view keeps the row visible
 export async function updateHeartbeat(playerId: string) {
   await supabase
     .from('players')
-    .update({ last_seen: new Date().toISOString() })
+    .update({ 
+      last_seen: new Date().toISOString(),
+      status: 'online'   // keep status fresh so a stale 'busy' row never blocks re-entry
+    })
     .eq('id', playerId);
 }
 
 export async function createOrGetPlayer(userId: string, username: string): Promise<Player> {
-  // Upsert on the unique `username` column so two simultaneous logins with the
-  // same name cannot both see "player not found" and race to insert.
-  // Existing rows get their status and last_seen refreshed; new rows are created.
   const { data, error } = await supabase
     .from('players')
     .upsert(
@@ -40,13 +41,27 @@ export async function createOrGetPlayer(userId: string, username: string): Promi
 
 // --- 2. PAGE DATA FETCHING (Lobby, Members, Playing) ---
 
+// FIXED: query the view — but also accept that the view filters by last_seen.
+// The caller passes profileId (auth UUID) so we can exclude self.
 export async function getLobbyPlayers(currentPlayerId: string): Promise<Player[]> {
   const { data, error } = await supabase
     .from('lobby_players')
     .select('*')
     .neq('id', currentPlayerId);
 
-  if (error) throw error;
+  if (error) {
+    // Graceful fallback: if the view doesn't exist yet (migration not run),
+    // fall back to a direct players query so the UI isn't completely broken.
+    console.warn('lobby_players view missing — falling back to players table:', error.message);
+    const { data: fallback, error: fbErr } = await supabase
+      .from('players')
+      .select('*')
+      .neq('id', currentPlayerId)
+      .neq('status', 'busy')
+      .gt('last_seen', new Date(Date.now() - 30_000).toISOString());
+    if (fbErr) throw fbErr;
+    return fallback || [];
+  }
   return data || [];
 }
 
@@ -65,7 +80,21 @@ export async function getActiveMatches() {
     .from('currently_playing')
     .select('*');
 
-  if (error) throw error;
+  if (error) {
+    // Graceful fallback if view doesn't exist yet
+    console.warn('currently_playing view missing — falling back:', error.message);
+    const { data: fallback } = await supabase
+      .from('games')
+      .select('id, white_player_username, black_player_username, status')
+      .eq('status', 'active')
+      .not('black_player_id', 'is', null);
+    return (fallback || []).map(g => ({
+      game_id: g.id,
+      white_player: g.white_player_username,
+      black_player: g.black_player_username,
+      status: g.status,
+    }));
+  }
   return data || [];
 }
 
@@ -159,7 +188,6 @@ export function subscribeToChallenges(playerId: string, callback: (payload: { ne
     .channel(`lobby-${playerId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'challenges' }, (payload) => {
         const newData = payload.new as Record<string, unknown>;
-        // Safety check with optional chaining ?.
         if (newData?.challenger_id === playerId || newData?.challenged_id === playerId) {
             callback(payload as { new?: { challenger_id?: string, challenged_id?: string, status?: string, game_id?: string } });
         }
@@ -186,7 +214,6 @@ export function subscribeToChallengeAccepted(
     .subscribe();
 }
 
-// CRITICAL: The move listener so you see pieces move on your screen!
 export function subscribeToGame(gameId: string, callback: (game: Game) => void) {
   return supabase
     .channel(`game:${gameId}`)
@@ -224,22 +251,16 @@ export async function makeGameMove(
   const piece = currentGame.board_state[positionToKey(from)];
   if (!piece) throw new Error('No piece at source position');
 
-  // Guard: playerId must be a non-empty string — a missing or null player ID
-  // would cause the Postgres function to reject the move with a cryptic error.
   if (!playerId) throw new Error('Player ID is required to make a move');
 
-  // Compute the new board client-side (needed for optimistic UI rendering and
-  // post-move game-end detection before the DB subscription fires).
   const { newBoard, capturedPiece } = makeMove(currentGame.board_state, from, to);
   const nextTurn: PieceColor = currentGame.current_turn === 'white' ? 'black' : 'white';
 
-  // Build 'e2-e4' style notation from the two positions.
   const moveNotation = `${positionToAlgebraic(from)}-${positionToAlgebraic(to)}`;
   
   const isCheck = isCheckmate(newBoard, nextTurn) || isKingInCheck(newBoard, nextTurn);
   const isCheckmateVal = isCheckmate(newBoard, nextTurn);
 
-  // Single RPC call → UPDATE games + INSERT INTO moves in one transaction.
   const { data, error } = await supabase.rpc('make_game_move', {
     p_game_id:       gameId,
     p_player_id:     playerId,
@@ -263,23 +284,16 @@ export async function makeGameMove(
 
   const returnedGame = data as unknown as Game;
 
-  // --- Post-move game-end detection ---
-  // Check the board that will be facing the next player.
-  // isCheckmate / isStalemate use the full self-check-aware legal-move scan.
   if (isCheckmate(newBoard, nextTurn)) {
-    // The player who just moved wins.
     await endGame(gameId, currentGame.current_turn);
     returnedGame.status = 'finished';
     returnedGame.winner = currentGame.current_turn;
   } else if (isStalemate(newBoard, nextTurn)) {
-    // No legal moves but not in check → draw.
     await endGame(gameId, null);
     returnedGame.status = 'finished';
     returnedGame.winner = 'draw';
   }
 
-  // Return the computed game row so the caller can apply an optimistic UI update
-  // immediately, before the realtime subscription delivers the DB snapshot.
   return returnedGame;
 }
 
@@ -293,8 +307,6 @@ export async function getMoves(gameId: string): Promise<Move[]> {
   return data || [];
 }
 
-// endGame: called after checkmate, stalemate, or timeout.
-// winner = null means draw (stalemate).
 export async function endGame(
   gameId: string,
   winner: PieceColor | null
