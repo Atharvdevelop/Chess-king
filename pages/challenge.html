@@ -56,6 +56,113 @@
       background: rgba(139, 92, 246, 0.1);
       box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
     }
+
+    /* ── Custom Select Dropdown ── */
+    .glass-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(71, 85, 105, 0.6);
+      color: #e2e8f0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      background-size: 16px;
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .glass-select:focus {
+      outline: none;
+      border-color: rgb(139, 92, 246);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18), 0 0 12px rgba(139, 92, 246, 0.15);
+    }
+    .glass-select option {
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    /* ── Username Input with icon ── */
+    .input-icon-wrap {
+      position: relative;
+    }
+    .input-icon-wrap .input-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #475569;
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+    .input-icon-wrap input:focus + .input-icon,
+    .input-icon-wrap input:not(:placeholder-shown) + .input-icon {
+      color: #8b5cf6;
+    }
+    .input-icon-wrap input {
+      padding-left: 42px;
+    }
+
+    /* ── Format Badge Pill inside select label ── */
+    .format-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      background: rgba(139, 92, 246, 0.06);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 14px;
+      margin-top: 10px;
+      transition: opacity 0.25s;
+    }
+    .format-preview .fp-badge {
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .format-preview .fp-time {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+    }
+    .format-preview .fp-desc {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    /* ── Input validation states ── */
+    .glass-input.is-valid {
+      border-color: rgb(52, 211, 153);
+      box-shadow: 0 0 8px rgba(52, 211, 153, 0.15);
+    }
+    .glass-input.is-invalid {
+      border-color: rgb(251, 113, 133);
+      box-shadow: 0 0 8px rgba(251, 113, 133, 0.12);
+    }
+
+    /* ── Animated send button ── */
+    #send-challenge-btn {
+      position: relative;
+      overflow: hidden;
+    }
+    #send-challenge-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
+      transform: translateX(-100%);
+      transition: transform 0.5s;
+    }
+    #send-challenge-btn:hover::after {
+      transform: translateX(100%);
+    }
+    #send-challenge-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 
   <!-- Global Shared Auth Guard -->
@@ -187,19 +294,76 @@
         </button>
       </div>
 
-      <!-- Option B: Direct Challenge UI (Hidden by default) -->
+      <!-- Option B: Direct Challenge UI -->
       <div id="direct-mode-panel" class="hidden space-y-6">
+
+        <!-- Time Format Dropdown -->
         <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Opponent's Username</label>
-          <input type="text" id="target-username" placeholder="Enter exact username..." class="w-full glass-input rounded-xl px-4 py-3 text-white outline-none" />
-          <p class="text-[11px] text-slate-500 mt-1">This will send an invitation notification directly to their session.</p>
+          <label for="direct-time-format" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Time Format</label>
+          <select id="direct-time-format" class="glass-select w-full rounded-xl px-4 py-3 text-white font-semibold">
+            <option value="1+0" data-label="Bullet" data-color="amber" data-time="1 min" data-desc="1 minute per side · no increment">⚡ Bullet — 1+0</option>
+            <option value="3+2" data-label="Blitz" data-color="red" data-time="3 + 2" data-desc="3 minutes + 2 second increment">🔥 Blitz — 3+2</option>
+            <option value="10+0" data-label="Rapid" data-color="emerald" data-time="10 min" data-desc="10 minutes per side · no increment">🌿 Rapid — 10+0</option>
+          </select>
+
+          <!-- Dynamic format preview pill -->
+          <div class="format-preview" id="format-preview-bar">
+            <span class="fp-badge" id="fp-badge" style="background:rgba(245,158,11,0.12);color:#fbbf24">Bullet</span>
+            <div>
+              <div class="fp-time" id="fp-time">1 min</div>
+              <div class="fp-desc" id="fp-desc">1 minute per side · no increment</div>
+            </div>
+            <div class="ml-auto">
+              <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <button id="send-challenge-btn" class="w-full bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-cyan-600/25 hover:shadow-cyan-600/35 flex items-center justify-center gap-2">
-          <span>Send Challenge Invitation</span>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+        <!-- Opponent Username Input -->
+        <div>
+          <label for="target-username" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+            Opponent's Username
+            <span class="text-rose-400 ml-0.5">*</span>
+          </label>
+
+          <div class="input-icon-wrap">
+            <input
+              type="text"
+              id="target-username"
+              placeholder="e.g. MagnusCarlsen"
+              autocomplete="off"
+              spellcheck="false"
+              class="w-full glass-input rounded-xl py-3 pr-4 text-white font-medium outline-none transition-all duration-200"
+            />
+            <!-- @ icon -->
+            <svg class="input-icon w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+            </svg>
+          </div>
+
+          <!-- Helper / validation text -->
+          <p class="text-[11px] mt-1.5 transition-all" id="username-hint">
+            <span class="text-slate-500">Usernames are case-sensitive. The invitation goes directly to their active session.</span>
+          </p>
+        </div>
+
+        <!-- Send Button -->
+        <button
+          id="send-challenge-btn"
+          disabled
+          class="w-full bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-cyan-600/25 hover:shadow-cyan-600/35 flex items-center justify-center gap-2.5"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
+          <span id="send-btn-label">Send Challenge Invitation</span>
         </button>
+
+        <p class="text-[11px] text-slate-600 text-center -mt-2">
+          The challenged player will receive a pop-up notification in their lobby.
+        </p>
       </div>
 
       <!-- Waiting Overlay / Loading State (Hidden by default) -->
@@ -220,56 +384,197 @@
     </div>
   </main>
 
-  <!-- Placeholder script for pairing logic -->
+  <!-- Challenge page logic -->
   <script type="text/javascript" id="pairing-logic-script">
     document.addEventListener("DOMContentLoaded", () => {
-      console.log("Challenge template loaded. Awaiting client implementation.");
-      
+      console.log("Challenge page loaded.");
+
+      // ── Logout ────────────────────────────────────────────
       const logoutBtn = document.getElementById("logout-btn");
-      if (logoutBtn && supabase) {
+      if (logoutBtn && typeof supabase !== 'undefined') {
         logoutBtn.addEventListener("click", async () => {
           await supabase.auth.signOut();
           window.location.href = '/index.html';
         });
       }
 
-      // Handle simple tabs toggling
-      const tabOpen = document.getElementById("tab-open");
+      // ── Tab switching ──────────────────────────────────────
+      const tabOpen   = document.getElementById("tab-open");
       const tabDirect = document.getElementById("tab-direct");
-      const openPanel = document.getElementById("open-mode-panel");
+      const openPanel   = document.getElementById("open-mode-panel");
       const directPanel = document.getElementById("direct-mode-panel");
 
-      if (tabOpen && tabDirect && openPanel && directPanel) {
-        tabOpen.addEventListener("click", () => {
-          tabOpen.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all";
-          tabDirect.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all";
-          openPanel.classList.remove("hidden");
-          directPanel.classList.add("hidden");
-        });
-        
-        tabDirect.addEventListener("click", () => {
-          tabDirect.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all";
-          tabOpen.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all";
+      const ACTIVE_TAB   = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all";
+      const INACTIVE_TAB = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all";
+
+      function activateTab(which) {
+        if (which === 'direct') {
+          tabDirect.className = ACTIVE_TAB;
+          tabOpen.className   = INACTIVE_TAB;
           directPanel.classList.remove("hidden");
           openPanel.classList.add("hidden");
-        });
+        } else {
+          tabOpen.className   = ACTIVE_TAB;
+          tabDirect.className = INACTIVE_TAB;
+          openPanel.classList.remove("hidden");
+          directPanel.classList.add("hidden");
+        }
       }
 
-      // Time format card selection
-      const timeCards = document.querySelectorAll("#time-formats-container > div");
+      tabOpen.addEventListener("click",   () => activateTab('open'));
+      tabDirect.addEventListener("click", () => activateTab('direct'));
+
+      // ── URL param: auto-activate tab & pre-fill username ──
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'direct') {
+        activateTab('direct');
+        const preUser = params.get('u');
+        if (preUser) {
+          document.getElementById('target-username').value = decodeURIComponent(preUser);
+          validateUsername();
+        }
+      }
+
+      // ── Open-challenge time card selection (grid) ─────────
+      const timeCards      = document.querySelectorAll("#time-formats-container > div");
       const customTimeInputs = document.getElementById("custom-time-inputs");
-      
+
       timeCards.forEach(card => {
         card.addEventListener("click", () => {
           timeCards.forEach(c => c.classList.remove("time-card-selected"));
           card.classList.add("time-card-selected");
-          
-          if (card.getAttribute("data-format") === "custom") {
-            customTimeInputs.classList.remove("hidden");
-          } else {
-            customTimeInputs.classList.add("hidden");
-          }
+          customTimeInputs.classList.toggle("hidden", card.getAttribute("data-format") !== "custom");
         });
+      });
+
+      // ── Direct-challenge: format dropdown preview ─────────
+      const formatSelect = document.getElementById("direct-time-format");
+      const fpBadge  = document.getElementById("fp-badge");
+      const fpTime   = document.getElementById("fp-time");
+      const fpDesc   = document.getElementById("fp-desc");
+
+      const FORMAT_STYLES = {
+        '1+0':  { bg: 'rgba(245,158,11,0.12)',  color: '#fbbf24' },
+        '3+2':  { bg: 'rgba(239,68,68,0.12)',   color: '#f87171' },
+        '10+0': { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
+      };
+
+      function updateFormatPreview() {
+        const opt    = formatSelect.options[formatSelect.selectedIndex];
+        const val    = formatSelect.value;
+        const style  = FORMAT_STYLES[val] || FORMAT_STYLES['1+0'];
+
+        fpBadge.textContent        = opt.dataset.label || val;
+        fpBadge.style.background   = style.bg;
+        fpBadge.style.color        = style.color;
+        fpTime.textContent         = opt.dataset.time  || val;
+        fpDesc.textContent         = opt.dataset.desc  || '';
+
+        // Update send button label
+        const label = document.getElementById('send-btn-label');
+        if (label) label.textContent = `Send ${opt.dataset.label || ''} Challenge`;
+      }
+
+      formatSelect.addEventListener('change', updateFormatPreview);
+      updateFormatPreview(); // init
+
+      // ── Username validation ───────────────────────────────
+      const usernameInput = document.getElementById('target-username');
+      const usernameHint  = document.getElementById('username-hint');
+      const sendBtn       = document.getElementById('send-challenge-btn');
+
+      function validateUsername() {
+        const val = usernameInput.value.trim();
+        usernameInput.classList.remove('is-valid', 'is-invalid');
+
+        if (val.length === 0) {
+          usernameHint.innerHTML = '<span class="text-slate-500">Usernames are case-sensitive. The invitation goes directly to their active session.</span>';
+          sendBtn.disabled = true;
+          return;
+        }
+
+        if (val.length < 3) {
+          usernameInput.classList.add('is-invalid');
+          usernameHint.innerHTML = '<span class="text-rose-400">Username must be at least 3 characters.</span>';
+          sendBtn.disabled = true;
+          return;
+        }
+
+        // Basic valid pattern: letters, digits, underscores, hyphens
+        if (!/^[A-Za-z0-9_\-]+$/.test(val)) {
+          usernameInput.classList.add('is-invalid');
+          usernameHint.innerHTML = '<span class="text-rose-400">Username may only contain letters, numbers, underscores, or hyphens.</span>';
+          sendBtn.disabled = true;
+          return;
+        }
+
+        usernameInput.classList.add('is-valid');
+        usernameHint.innerHTML = `<span class="text-emerald-400">✓ Ready to challenge <strong>${val}</strong></span>`;
+        sendBtn.disabled = false;
+      }
+
+      usernameInput.addEventListener('input', validateUsername);
+
+      // ── Send direct challenge ─────────────────────────────
+      sendBtn.addEventListener('click', async () => {
+        const targetUser = usernameInput.value.trim();
+        const timeFormat = formatSelect.value;
+        if (!targetUser) return;
+
+        sendBtn.disabled = true;
+        const origLabel = document.getElementById('send-btn-label').textContent;
+        document.getElementById('send-btn-label').textContent = 'Sending…';
+
+        try {
+          if (typeof supabase === 'undefined') {
+            throw new Error('Supabase client not initialised.');
+          }
+
+          // Resolve the challenged player's ID from their username
+          const { data: profileRows, error: profileErr } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('username', targetUser)
+            .limit(1);
+
+          if (profileErr || !profileRows || profileRows.length === 0) {
+            throw new Error(`Player "${targetUser}" not found. Check the spelling and try again.`);
+          }
+
+          const challengedId = profileRows[0].id;
+
+          // Get current user session
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error('You are not logged in.');
+
+          const challengerId = session.user.id;
+          if (challengerId === challengedId) {
+            throw new Error("You can't challenge yourself!");
+          }
+
+          // Insert challenge row
+          const { error: insertErr } = await supabase.from('challenges').insert({
+            challenger_id: challengerId,
+            challenged_id: challengedId,
+            time_format:   timeFormat,
+            status:        'pending'
+          });
+
+          if (insertErr) throw insertErr;
+
+          // Show success state and navigate to lobby to wait
+          document.getElementById('send-btn-label').textContent = '✓ Challenge Sent!';
+          usernameHint.innerHTML = `<span class="text-emerald-400">Invitation sent to <strong>${targetUser}</strong>. Redirecting to lobby…</span>`;
+
+          setTimeout(() => { window.location.href = '/pages/lobby.html'; }, 1800);
+
+        } catch (err) {
+          console.error('Send challenge error:', err);
+          usernameHint.innerHTML = `<span class="text-rose-400">⚠ ${err.message}</span>`;
+          usernameInput.classList.add('is-invalid');
+          document.getElementById('send-btn-label').textContent = origLabel;
+          sendBtn.disabled = false;
+        }
       });
     });
   </script>

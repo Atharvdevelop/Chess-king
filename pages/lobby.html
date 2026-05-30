@@ -525,20 +525,59 @@
         })
         .subscribe();
 
-      // Listen for new games created where user is a participant
+      // Listen for game rows where this user is white OR black player.
+      // Supabase postgres_changes filter only supports one column per .on() call,
+      // so we register two listeners on the same channel — one per player-colour slot.
+      // Both INSERT (new game created) and UPDATE (e.g. status changed to active) are
+      // caught so the redirect fires regardless of which side created the row.
+      let gameRedirectFired = false; // guard against double-redirect races
+
+      function handleGameRowChange(payload) {
+        const row = payload.new;
+        if (!row || gameRedirectFired) return;
+
+        const isParticipant =
+          row.white_player_id === currentUserId ||
+          row.black_player_id === currentUserId;
+
+        // Only redirect for active games, not finished/waiting ones
+        if (isParticipant && row.status === 'active') {
+          gameRedirectFired = true;
+          window.location.href = '/pages/play.html?gameId=' + row.id;
+        }
+      }
+
       const gamesSubscription = supabase
         .channel(`lobby-games-${currentUserId}`)
+        // White-side slot: catches rows this user created as White
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
-          table: 'games'
-        }, (payload) => {
-          const newGame = payload.new;
-          if (newGame && (newGame.white_player_id === currentUserId || newGame.black_player_id === currentUserId)) {
-            window.location.href = `/pages/play.html?gameId=${newGame.id}`;
-          }
-        })
-        .subscribe();
+          table: 'games',
+          filter: `white_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `white_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        // Black-side slot: catches rows this user joined as Black
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games',
+          filter: `black_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `black_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        .subscribe((status) => {
+          console.log(`[games-sub] channel status: ${status}`);
+        });
 
       // 4. Real-time Global Chat (Broadcast channel subscription)
       globalChatChannel = supabase.channel('lobby-global-chat', {
