@@ -323,24 +323,22 @@
         submitBtn.querySelector("span").textContent = "Creating Account...";
 
         try {
-          // 1. Auth SignUp
-          const { data, error: signUpError } = await supabase.auth.signUp({
+          // FIXED: Renamed the destructuring data variable to 'authData' 
+          // to stop colliding with the global 'supabase' client instance.
+          const { data: authData, error: signUpError } = await supabase.auth.signUp({
             email: email,
             password: password,
             options: {
-              data: {
-                username: username,
-                full_name: fullname
-              }
+              data: { username: username, full_name: fullname }
             }
-          });
+         });
 
           if (signUpError) throw signUpError;
-          if (!data.user) throw new Error("Registration failed.");
+          if (!authData.user) throw new Error("Registration failed.");
 
-          // 2. Profiles Upsert
+          // 2. Profiles Upsert - Passing authData.user.id cleanly
           const { error: profileError } = await supabase.from("profiles").upsert({
-            id: data.user.id,
+            id: authData.user.id,
             username: username,
             full_name: fullname,
             email: email,
@@ -349,15 +347,18 @@
 
           if (profileError) throw profileError;
 
-          // 3. Players Upsert
-          const { error: playerError } = await supabase.from("players").upsert(
-            { username: username, status: "online", last_seen: new Date().toISOString() },
-            { onConflict: "username" }
-          );
+          // 3. Players Upsert - Crucial Fix: Explicitly forwarding the auth ID 
+          // to prevent violating our strict relational Foreign Key constraints!
+          const { error: playerError } = await supabase.from("players").upsert({
+            id: authData.user.id, // Explicit ID forwarding
+            username: username,
+            status: "online",
+            last_seen: new Date().toISOString()
+          }, { onConflict: "id" }); // On conflict match by user ID
 
           if (playerError) throw playerError;
 
-          if (data.session) {
+          if (authData.session) {
             showSuccess("Account created successfully! Redirecting...");
             setTimeout(() => {
               window.location.href = "/pages/lobby.html";
@@ -365,7 +366,6 @@
           } else {
             showSuccess("Account created! Please check your email to confirm registration, then sign in.");
             signupForm.reset();
-            // Toggle to signin mode
             toggleModeBtn.click();
             submitBtn.disabled = false;
             submitBtn.querySelector("span").textContent = "Create Account";
