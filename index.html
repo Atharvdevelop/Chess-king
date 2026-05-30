@@ -1,16 +1,14 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login | Chess King</title>
-
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
-    rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -34,21 +32,18 @@
     body {
       font-family: 'Outfit', sans-serif;
       background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 45%);
+                        radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 45%);
     }
-
     .glass-panel {
       background: rgba(15, 23, 42, 0.65);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(51, 65, 85, 0.5);
     }
-
     .glass-input {
       background: rgba(15, 23, 42, 0.4);
       border: 1px solid rgba(71, 85, 105, 0.5);
     }
-
     .glass-input:focus {
       border-color: rgb(139, 92, 246);
       box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
@@ -60,7 +55,7 @@
   <script type="text/javascript">
     const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
-
+    
     let supabase;
     try {
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -83,111 +78,57 @@
     })();
   </script>
 </head>
-
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-center items-center p-4 antialiased">
 
   <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.02]">
     <div class="grid grid-cols-8 h-full w-full">
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
-      <div></div>
-      <div class="bg-white aspect-square"></div>
+      <div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div>
+      <div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div>
+      <div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div>
+      <div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div>
+      <div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div>
+      <div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div><div></div><div class="bg-white aspect-square"></div>
     </div>
   </div>
 
   <div class="relative w-full max-w-md">
-
+    
     <div class="text-center mb-8">
-      <div
-        class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 shadow-xl shadow-violet-600/20 mb-4">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 shadow-xl shadow-violet-600/20 mb-4">
         <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-          <path
-            d="M19 6H20C20.5523 6 21 6.44772 21 7V9C21 9.55228 20.5523 10 20 10H19V12H20C20.5523 12 21 12.4477 21 13V15C21 15.5523 20.5523 16 20 16H19V18C19 19.1046 18.1046 20 17 20H7C5.89543 20 5 19.1046 5 18V16H4C3.44772 16 3 15.5523 3 15V13C3 12.4477 3.44772 12 4 12H5V10H4C3.44772 10 3 9.55228 3 9V7C3 6.44772 3.44772 6 4 6H5V4C5 2.89543 5.89543 2 7 2H17C18.1046 2 19 2.89543 19 4V6ZM17 4H7V18H17V4ZM9 6H15V8H9V6ZM9 10H15V12H9V10ZM9 14H15V16H9V14Z" />
+          <path d="M19 6H20C20.5523 6 21 6.44772 21 7V9C21 9.55228 20.5523 10 20 10H19V12H20C20.5523 12 21 12.4477 21 13V15C21 15.5523 20.5523 16 20 16H19V18C19 19.1046 18.1046 20 17 20H7C5.89543 20 5 19.1046 5 18V16H4C3.44772 16 3 15.5523 3 15V13C3 12.4477 3.44772 12 4 12H5V10H4C3.44772 10 3 9.55228 3 9V7C3 6.44772 3.44772 6 4 6H5V4C5 2.89543 5.89543 2 7 2H17C18.1046 2 19 2.89543 19 4V6ZM17 4H7V18H17V4ZM9 6H15V8H9V6ZM9 10H15V12H9V10ZM9 14H15V16H9V14Z" />
         </svg>
       </div>
-      <h1
-        class="text-3xl font-black text-white tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-        Chess King</h1>
+      <h1 class="text-3xl font-black text-white tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Chess King</h1>
       <p class="text-slate-400 text-xs mt-1.5" id="form-subtitle">Welcome back. Ready to play?</p>
     </div>
 
     <div class="glass-panel rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-
-      <div id="error-banner"
-        class="hidden mb-5 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-2">
+      
+      <div id="error-banner" class="hidden mb-5 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-2">
         <span>⚠️</span>
         <span id="error-message">Error message details here.</span>
       </div>
 
-      <div id="success-banner"
-        class="hidden mb-5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-start gap-2">
+      <div id="success-banner" class="hidden mb-5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-start gap-2">
         <span>✅</span>
         <span id="success-message">Operation successful!</span>
       </div>
 
       <form id="signin-form" class="space-y-4">
         <div>
-          <label for="si-identifier"
-            class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username or Email</label>
-          <input type="text" id="si-identifier" placeholder="Enter username or email..."
-            class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
+          <label for="si-identifier" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username or Email</label>
+          <input type="text" id="si-identifier" placeholder="Enter username or email..." class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
         </div>
 
         <div>
           <div class="flex justify-between items-center mb-1.5">
-            <label for="si-password"
-              class="block text-xs font-bold uppercase tracking-wider text-slate-400">Password</label>
+            <label for="si-password" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Password</label>
           </div>
-          <input type="password" id="si-password" placeholder="••••••••"
-            class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
+          <input type="password" id="si-password" placeholder="••••••••" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
         </div>
 
-        <button type="submit" id="signin-submit-btn"
-          class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/35 flex items-center justify-center gap-2 mt-6">
+        <button type="submit" id="signin-submit-btn" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/35 flex items-center justify-center gap-2 mt-6">
           <span>Sign In</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -198,54 +139,41 @@
       <form id="signup-form" class="hidden space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label for="su-username"
-              class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username</label>
-            <input type="text" id="su-username" placeholder="master1"
-              class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
+            <label for="su-username" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username</label>
+            <input type="text" id="su-username" placeholder="master1" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
           </div>
           <div>
-            <label for="su-fullname" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Full
-              Name</label>
-            <input type="text" id="su-fullname" placeholder="Grand Master"
-              class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
+            <label for="su-fullname" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Full Name</label>
+            <input type="text" id="su-fullname" placeholder="Grand Master" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
           </div>
         </div>
 
         <div>
-          <label for="su-email" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Email
-            Address</label>
-          <input type="email" id="su-email" placeholder="you@domain.com"
-            class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
+          <label for="su-email" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Email Address</label>
+          <input type="email" id="su-email" placeholder="you@domain.com" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
         </div>
 
         <div>
-          <label for="su-password"
-            class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
-          <input type="password" id="su-password" placeholder="Min 6 characters"
-            class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
+          <label for="su-password" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
+          <input type="password" id="su-password" placeholder="Min 6 characters" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
         </div>
 
         <div>
-          <label for="su-confirm" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Confirm
-            Password</label>
-          <input type="password" id="su-confirm" placeholder="Repeat password"
-            class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
+          <label for="su-confirm" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Confirm Password</label>
+          <input type="password" id="su-confirm" placeholder="Repeat password" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
         </div>
 
-        <button type="submit" id="signup-submit-btn"
-          class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/35 flex items-center justify-center gap-2 mt-6">
+        <button type="submit" id="signup-submit-btn" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/35 flex items-center justify-center gap-2 mt-6">
           <span>Create Account</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
           </svg>
         </button>
       </form>
 
       <div class="mt-6 text-center text-sm text-slate-400 border-t border-slate-900 pt-5">
         <span id="toggle-prompt-text">Don't have an account?</span>
-        <button id="toggle-auth-mode-btn"
-          class="text-violet-400 hover:text-violet-300 font-semibold transition-all">Register</button>
+        <button id="toggle-auth-mode-btn" class="text-violet-400 hover:text-violet-300 font-semibold transition-all">Register</button>
       </div>
 
     </div>
@@ -261,7 +189,7 @@
 
       const signinForm = document.getElementById("signin-form");
       const signupForm = document.getElementById("signup-form");
-
+      
       const formSubtitle = document.getElementById("form-subtitle");
       const togglePromptText = document.getElementById("toggle-prompt-text");
       const toggleModeBtn = document.getElementById("toggle-auth-mode-btn");
@@ -315,7 +243,7 @@
         const submitBtn = document.getElementById("signin-submit-btn");
 
         if (!identifier || !password) return;
-
+        
         submitBtn.disabled = true;
         submitBtn.querySelector("span").textContent = "Signing In...";
 
@@ -436,5 +364,4 @@
     });
   </script>
 </body>
-
 </html>
