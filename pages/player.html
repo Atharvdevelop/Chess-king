@@ -45,31 +45,8 @@
     }
   </style>
 
-  <!-- Supabase JS Library CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <!-- Global Shared Auth Guard -->
-  <script type="text/javascript">
-    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
-    
-    // Initialize Supabase Client
-    let supabase;
-    try {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    } catch (e) {
-      console.error("Failed to initialize Supabase client in header:", e);
-    }
-
-    // Check session before page renders fully
-    (async function checkAuth() {
-      if (!supabase) return;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.href = '/index.html';
-      }
-    })();
-  </script>
+  <script type="module" src="/src/lib/authGuard.ts"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
 

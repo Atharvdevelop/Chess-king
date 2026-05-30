@@ -66,32 +66,8 @@
     }
   </style>
 
-  <!-- Supabase JS Library CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <!-- Global Shared Auth Guard -->
-  <script type="text/javascript">
-    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
-    
-    // Initialize Supabase Client
-    let supabase;
-    try {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    } catch (e) {
-      console.error("Failed to initialize Supabase client in header:", e);
-    }
-
-    // Check session before page renders fully
-    (async function checkAuth() {
-      if (!supabase) return;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Not authenticated, redirect to index.html (login gate)
-        window.location.href = '/index.html';
-      }
-    })();
-  </script>
+  <script type="module" src="/src/lib/authGuard.ts"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
 
@@ -244,19 +220,417 @@
     </div>
   </footer>
 
-  <!-- Placeholder script for lobby logic -->
+  <!-- Real-time Lobby Logic -->
   <script type="text/javascript" id="lobby-logic-script">
-    // Logic placeholder. Safe auth and setup.
     document.addEventListener("DOMContentLoaded", async () => {
-      console.log("Lobby template loaded. Awaiting client implementation.");
-      
+      console.log("Lobby client logic initializing...");
+
+      // Elements
       const logoutBtn = document.getElementById("logout-btn");
-      if (logoutBtn && supabase) {
+      const userBadge = document.getElementById("user-badge");
+      const userAvatar = document.getElementById("user-avatar-placeholder");
+      const userDisplayName = document.getElementById("user-display-name");
+      const userDisplayRating = document.getElementById("user-display-rating");
+      
+      const challengeCount = document.getElementById("challenge-count");
+      const challengesList = document.getElementById("lobby-challenges-list");
+      const liveGamesCount = document.getElementById("live-games-count");
+      const gamesList = document.getElementById("lobby-games-list");
+      
+      const onlineUsersCount = document.getElementById("online-users-count");
+      const onlinePlayersList = document.getElementById("online-players-list");
+      
+      const chatMessagesContainer = document.getElementById("chat-messages-container");
+      const chatForm = document.getElementById("chat-form");
+      const chatInput = document.getElementById("chat-input");
+
+      let currentUserId = null;
+      let currentUsername = null;
+      let globalChatChannel = null;
+
+      // 1. Resolve active session and profile
+      if (!supabase) {
+        console.error("Supabase client is not initialized.");
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !session.user) {
+        window.location.href = '/index.html';
+        return;
+      }
+
+      currentUserId = session.user.id;
+
+      // Fetch user profile from public.profiles
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('username, email')
+        .eq('id', currentUserId)
+        .single();
+
+      if (profileErr || !profile) {
+        console.error("Failed to fetch user profile:", profileErr);
+        // Fallback to email username if profile fetch fails
+        currentUsername = session.user.email.split('@')[0];
+      } else {
+        currentUsername = profile.username;
+      }
+
+      // Update Header UI
+      userDisplayName.textContent = currentUsername;
+      userAvatar.textContent = currentUsername.charAt(0).toUpperCase();
+      userBadge.classList.remove("hidden");
+
+      // Logout handler
+      if (logoutBtn) {
         logoutBtn.addEventListener("click", async () => {
+          // Set offline status in players table
+          await supabase.from('players').delete().eq('id', currentUserId);
           await supabase.auth.signOut();
           window.location.href = '/index.html';
         });
       }
+
+      // Heartbeat helper
+      async function sendHeartbeat() {
+        try {
+          await supabase.from('players').upsert({
+            id: currentUserId,
+            username: currentUsername,
+            status: 'online',
+            last_seen: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error("Heartbeat failed:", e);
+        }
+      }
+
+      // Initial presence heartbeat
+      await sendHeartbeat();
+      // Keep online presence active every 10s
+      const heartbeatInterval = setInterval(sendHeartbeat, 10000);
+
+      // 2. Fetch Lobby Data
+      async function refreshLobbyData() {
+        try {
+          // Fetch Online Players (lobby_players view filters busy / offline)
+          const { data: players, error: playersErr } = await supabase
+            .from('lobby_players')
+            .select('*')
+            .neq('id', currentUserId);
+
+          if (!playersErr && players) {
+            onlineUsersCount.textContent = players.length;
+            onlinePlayersList.innerHTML = '';
+            
+            if (players.length === 0) {
+              onlinePlayersList.innerHTML = `
+                <div class="text-xs text-slate-500 text-center py-4 italic">
+                  No other players online
+                </div>
+              `;
+            } else {
+              players.forEach(player => {
+                const row = document.createElement("div");
+                row.className = "flex justify-between items-center p-2 rounded-xl bg-slate-900/50 border border-slate-800/40 text-sm";
+                row.innerHTML = `
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span class="font-semibold text-slate-200">${player.username}</span>
+                  </div>
+                  <a href="/pages/challenge.html?u=${encodeURIComponent(player.username)}&mode=direct" class="text-[11px] bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 font-bold border border-violet-500/20 px-2.5 py-1 rounded-lg transition-all shrink-0">
+                    Challenge
+                  </a>
+                `;
+                onlinePlayersList.appendChild(row);
+              });
+            }
+          }
+
+          // Fetch Active matches from currently_playing view
+          const { data: matches, error: matchesErr } = await supabase
+            .from('currently_playing')
+            .select('*');
+
+          if (!matchesErr && matches) {
+            liveGamesCount.textContent = matches.length + (matches.length === 1 ? " game" : " games");
+            gamesList.innerHTML = '';
+            
+            if (matches.length === 0) {
+              gamesList.innerHTML = `
+                <p class="text-sm text-slate-500 text-center py-8">No active chess matches on the server right now.</p>
+              `;
+            } else {
+              matches.forEach(match => {
+                const row = document.createElement("div");
+                row.className = "flex justify-between items-center p-4 bg-slate-900/50 border border-slate-800 rounded-xl text-sm";
+                row.innerHTML = `
+                  <div class="flex items-center gap-3 text-slate-200 font-medium">
+                    <span class="font-bold text-violet-400">${match.white_player}</span> 
+                    <span class="text-slate-500 text-xs">vs</span> 
+                    <span class="font-bold text-cyan-400">${match.black_player}</span>
+                  </div>
+                  <a href="/pages/play.html?gameId=${match.game_id}&mode=spectate" class="text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-1.5 rounded-lg border border-slate-700 transition-all shrink-0">
+                    Spectate
+                  </a>
+                `;
+                gamesList.appendChild(row);
+              });
+            }
+          }
+
+          // Fetch pending incoming challenges
+          const { data: challenges, error: challengesErr } = await supabase
+            .from('challenges')
+            .select('id, challenger_id, challenged_id, status, created_at')
+            .eq('challenged_id', currentUserId)
+            .eq('status', 'pending');
+
+          if (!challengesErr && challenges) {
+            // Resolve usernames manually to avoid relational syntax issues
+            const resolvedChallenges = [];
+            for (const c of challenges) {
+              const { data: challengerProfile } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('id', c.challenger_id)
+                .single();
+              resolvedChallenges.push({
+                ...c,
+                challenger_username: challengerProfile ? challengerProfile.username : 'Unknown'
+              });
+            }
+
+            challengeCount.textContent = resolvedChallenges.length + (resolvedChallenges.length === 1 ? " waiting" : " waiting");
+            challengesList.innerHTML = '';
+            
+            if (resolvedChallenges.length === 0) {
+              challengesList.innerHTML = `
+                <div class="text-sm text-slate-500 text-center py-10">
+                  No pending challenges at the moment.
+                </div>
+              `;
+            } else {
+              resolvedChallenges.forEach(challenge => {
+                const card = document.createElement("div");
+                card.className = "flex justify-between items-center p-4 bg-violet-950/20 border border-violet-500/20 rounded-xl text-sm";
+                
+                const label = document.createElement("div");
+                label.innerHTML = `<span><strong>${challenge.challenger_username}</strong> challenges you!</span>`;
+                card.appendChild(label);
+
+                const actions = document.createElement("div");
+                actions.className = "flex gap-2";
+
+                const acceptBtn = document.createElement("button");
+                acceptBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all shadow-md shrink-0";
+                acceptBtn.textContent = "Accept";
+                acceptBtn.addEventListener("click", () => handleAcceptChallenge(challenge, challenge.challenger_username));
+
+                const declineBtn = document.createElement("button");
+                declineBtn.className = "bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all shadow-md shrink-0";
+                declineBtn.textContent = "Decline";
+                declineBtn.addEventListener("click", () => handleDeclineChallenge(challenge.id));
+
+                actions.appendChild(acceptBtn);
+                actions.appendChild(declineBtn);
+                card.appendChild(actions);
+
+                challengesList.appendChild(card);
+              });
+            }
+          }
+
+        } catch (e) {
+          console.error("Failed to refresh lobby data:", e);
+        }
+      }
+
+      // Initial fetch
+      await refreshLobbyData();
+      // Periodically refresh lists every 5s
+      const poller = setInterval(refreshLobbyData, 5000);
+
+      // Challenge Accepting handler
+      async function handleAcceptChallenge(challenge, challengerName) {
+        try {
+          const initialBoard = {
+            "a8": {"type": "rook", "color": "black"}, "b8": {"type": "knight", "color": "black"}, "c8": {"type": "bishop", "color": "black"}, "d8": {"type": "queen", "color": "black"}, "e8": {"type": "king", "color": "black"}, "f8": {"type": "bishop", "color": "black"}, "g8": {"type": "knight", "color": "black"}, "h8": {"type": "rook", "color": "black"},
+            "a7": {"type": "pawn", "color": "black"}, "b7": {"type": "pawn", "color": "black"}, "c7": {"type": "pawn", "color": "black"}, "d7": {"type": "pawn", "color": "black"}, "e7": {"type": "pawn", "color": "black"}, "f7": {"type": "pawn", "color": "black"}, "g7": {"type": "pawn", "color": "black"}, "h7": {"type": "pawn", "color": "black"},
+            "a2": {"type": "pawn", "color": "white"}, "b2": {"type": "pawn", "color": "white"}, "c2": {"type": "pawn", "color": "white"}, "d2": {"type": "pawn", "color": "white"}, "e2": {"type": "pawn", "color": "white"}, "f2": {"type": "pawn", "color": "white"}, "g2": {"type": "pawn", "color": "white"}, "h2": {"type": "pawn", "color": "white"},
+            "a1": {"type": "rook", "color": "white"}, "b1": {"type": "knight", "color": "white"}, "c1": {"type": "bishop", "color": "white"}, "d1": {"type": "queen", "color": "white"}, "e1": {"type": "king", "color": "white"}, "f1": {"type": "bishop", "color": "white"}, "g1": {"type": "knight", "color": "white"}, "h1": {"type": "rook", "color": "white"}
+          };
+
+          // 1. Create game entry
+          const { data: game, error: gameError } = await supabase
+            .from('games')
+            .insert({
+              white_player_id: challenge.challenger_id,
+              black_player_id: currentUserId,
+              board_state: initialBoard,
+              current_turn: 'white',
+              status: 'active',
+              white_player_username: challengerName,
+              black_player_username: currentUsername
+            })
+            .select()
+            .single();
+
+          if (gameError) throw gameError;
+
+          // 2. Set both players to busy
+          await supabase.from('players').update({ status: 'busy' }).in('id', [currentUserId, challenge.challenger_id]);
+
+          // 3. Update the challenge status to accepted with the game ID
+          await supabase.from('challenges').update({ status: 'accepted', game_id: game.id }).eq('id', challenge.id);
+
+          // 4. Transport to game
+          window.location.href = `/pages/play.html?gameId=${game.id}`;
+
+        } catch (e) {
+          console.error("Failed to accept challenge:", e);
+          alert("Error accepting challenge. Please try again.");
+        }
+      }
+
+      async function handleDeclineChallenge(challengeId) {
+        try {
+          await supabase.from('challenges').update({ status: 'rejected' }).eq('id', challengeId);
+          await refreshLobbyData();
+        } catch (e) {
+          console.error("Failed to reject challenge:", e);
+        }
+      }
+
+      // 3. Real-time Subscriptions
+      // Listen for challenges accepted by others (updates to challenges table where status = accepted)
+      const challengesSubscription = supabase
+        .channel(`lobby-challenges-${currentUserId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'challenges'
+        }, async (payload) => {
+          const newChallenge = payload.new;
+          if (!newChallenge) return;
+
+          // If the challenge we created is accepted, redirect to play.html
+          if (newChallenge.challenger_id === currentUserId && newChallenge.status === 'accepted' && newChallenge.game_id) {
+            window.location.href = `/pages/play.html?gameId=${newChallenge.game_id}`;
+          } else {
+            // Otherwise, refresh challenges list
+            await refreshLobbyData();
+          }
+        })
+        .subscribe();
+
+      // Listen for new games created where user is a participant
+      const gamesSubscription = supabase
+        .channel(`lobby-games-${currentUserId}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games'
+        }, (payload) => {
+          const newGame = payload.new;
+          if (newGame && (newGame.white_player_id === currentUserId || newGame.black_player_id === currentUserId)) {
+            window.location.href = `/pages/play.html?gameId=${newGame.id}`;
+          }
+        })
+        .subscribe();
+
+      // 4. Real-time Global Chat (Broadcast channel subscription)
+      globalChatChannel = supabase.channel('lobby-global-chat', {
+        config: {
+          broadcast: { self: true },
+        },
+      });
+
+      // Recipient callback
+      globalChatChannel.on('broadcast', { event: 'chat-message' }, (payload) => {
+        appendChatMessage(payload.payload);
+      });
+
+      globalChatChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log("Subscribed to global lobby chat channel.");
+        }
+      });
+
+      function appendChatMessage(data) {
+        const isMe = data.userId === currentUserId;
+        const msgDiv = document.createElement("div");
+        msgDiv.className = `flex flex-col max-w-[85%] rounded-2xl p-3 text-xs leading-normal ${
+          isMe 
+            ? 'bg-violet-600 text-white self-end rounded-tr-none' 
+            : 'bg-slate-900 border border-slate-800 text-slate-100 self-start rounded-tl-none'
+        }`;
+        
+        msgDiv.innerHTML = `
+          <div class="font-bold mb-0.5 text-[10px] ${isMe ? 'text-violet-200' : 'text-slate-400'}">${data.username}</div>
+          <div>${escapeHtml(data.text)}</div>
+        `;
+        
+        // Remove "Welcome" message if present
+        const welcomeText = chatMessagesContainer.querySelector(".text-slate-500");
+        if (welcomeText) {
+          welcomeText.remove();
+        }
+
+        chatMessagesContainer.appendChild(msgDiv);
+        chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+
+        // Cap message history at last 50
+        while (chatMessagesContainer.children.length > 50) {
+          chatMessagesContainer.removeChild(chatMessagesContainer.firstChild);
+        }
+      }
+
+      // Send handler
+      chatForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        chatInput.value = '';
+        
+        try {
+          await globalChatChannel.send({
+            type: 'broadcast',
+            event: 'chat-message',
+            payload: {
+              userId: currentUserId,
+              username: currentUsername,
+              text: text
+            }
+          });
+        } catch (err) {
+          console.error("Failed to broadcast chat message:", err);
+        }
+      });
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Cleanup subscriptions on page hide / unload
+      window.addEventListener("beforeunload", () => {
+        clearInterval(heartbeatInterval);
+        clearInterval(poller);
+        if (supabase) {
+          supabase.removeChannel(challengesSubscription);
+          supabase.removeChannel(gamesSubscription);
+          if (globalChatChannel) {
+            supabase.removeChannel(globalChatChannel);
+          }
+        }
+      });
     });
   </script>
 </body>
