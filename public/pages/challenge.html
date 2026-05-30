@@ -5,32 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create Challenge | Chess King</title>
   
-  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: {
-            sans: ['Outfit', 'sans-serif'],
-          },
-          colors: {
-            slate: {
-              950: '#030712',
-            }
-          }
+          fontFamily: { sans: ['Outfit', 'sans-serif'] },
+          colors: { slate: { 950: '#030712' } }
         }
       }
     }
   </script>
 
-  <!-- Custom styles / animations -->
   <style>
     body {
       font-family: 'Outfit', sans-serif;
@@ -56,8 +47,6 @@
       background: rgba(139, 92, 246, 0.1);
       box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
     }
-
-    /* ── Custom Select Dropdown ── */
     .glass-select {
       appearance: none;
       -webkit-appearance: none;
@@ -69,176 +58,47 @@
       background-position: right 14px center;
       background-size: 16px;
       cursor: pointer;
-      transition: border-color 0.2s, box-shadow 0.2s;
     }
     .glass-select:focus {
       outline: none;
       border-color: rgb(139, 92, 246);
       box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18), 0 0 12px rgba(139, 92, 246, 0.15);
     }
-    .glass-select option {
-      background: #0f172a;
-      color: #e2e8f0;
-    }
-
-    /* ── Username Input with icon ── */
-    .input-icon-wrap {
-      position: relative;
-    }
+    .glass-select option { background: #0f172a; color: #e2e8f0; }
+    .input-icon-wrap { position: relative; }
     .input-icon-wrap .input-icon {
-      position: absolute;
-      left: 14px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #475569;
-      pointer-events: none;
-      transition: color 0.2s;
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #475569; pointer-events: none;
     }
-    .input-icon-wrap input:focus + .input-icon,
-    .input-icon-wrap input:not(:placeholder-shown) + .input-icon {
-      color: #8b5cf6;
-    }
-    .input-icon-wrap input {
-      padding-left: 42px;
-    }
-
-    /* ── Format Badge Pill inside select label ── */
+    .input-icon-wrap input:focus + .input-icon { color: #8b5cf6; }
+    .input-icon-wrap input { padding-left: 42px; }
     .format-preview {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 16px;
-      background: rgba(139, 92, 246, 0.06);
-      border: 1px solid rgba(139, 92, 246, 0.2);
-      border-radius: 14px;
-      margin-top: 10px;
-      transition: opacity 0.25s;
+      display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+      background: rgba(139, 92, 246, 0.06); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 14px; margin-top: 10px;
     }
-    .format-preview .fp-badge {
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      padding: 3px 8px;
-      border-radius: 999px;
-    }
-    .format-preview .fp-time {
-      font-size: 20px;
-      font-weight: 800;
-      color: #fff;
-      line-height: 1;
-    }
-    .format-preview .fp-desc {
-      font-size: 11px;
-      color: #94a3b8;
-    }
-
-    /* ── Input validation states ── */
-    .glass-input.is-valid {
-      border-color: rgb(52, 211, 153);
-      box-shadow: 0 0 8px rgba(52, 211, 153, 0.15);
-    }
-    .glass-input.is-invalid {
-      border-color: rgb(251, 113, 133);
-      box-shadow: 0 0 8px rgba(251, 113, 133, 0.12);
-    }
-
-    /* ── Animated send button ── */
-    #send-challenge-btn {
-      position: relative;
-      overflow: hidden;
-    }
-    #send-challenge-btn::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
-      transform: translateX(-100%);
-      transition: transform 0.5s;
-    }
-    #send-challenge-btn:hover::after {
-      transform: translateX(100%);
-    }
-    #send-challenge-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* ── Waiting Modal ── */
+    .format-preview .fp-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; }
+    .format-preview .fp-time { font-size: 20px; font-weight: 800; color: #fff; line-height: 1; }
+    .format-preview .fp-desc { font-size: 11px; color: #94a3b8; }
+    .glass-input.is-valid { border-color: rgb(52, 211, 153); box-shadow: 0 0 8px rgba(52, 211, 153, 0.15); }
+    .glass-input.is-invalid { border-color: rgb(251, 113, 133); box-shadow: 0 0 8px rgba(251, 113, 133, 0.12); }
     #direct-waiting-modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-      background: rgba(3, 7, 18, 0.85);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      animation: fadeInModal 0.3s ease;
+      display: none; position: fixed; inset: 0; z-index: 100; align-items: center; justify-content: center; background: rgba(3, 7, 18, 0.85); backdrop-filter: blur(18px);
     }
-    #direct-waiting-modal.show {
-      display: flex;
-    }
-    @keyframes fadeInModal {
-      from { opacity: 0; transform: scale(0.97); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-    /* Dual-ring spinner */
-    .spinner-ring {
-      position: relative;
-      width: 88px;
-      height: 88px;
-    }
-    .spinner-ring::before,
-    .spinner-ring::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: 50%;
-      border: 3px solid transparent;
-    }
-    .spinner-ring::before {
-      border-top-color: #8b5cf6;
-      border-right-color: #8b5cf6;
-      animation: spin 1.1s linear infinite;
-    }
-    .spinner-ring::after {
-      border-bottom-color: #06b6d4;
-      border-left-color: #06b6d4;
-      animation: spin 1.6s linear infinite reverse;
-    }
+    #direct-waiting-modal.show { display: flex; }
+    .spinner-ring { position: relative; width: 88px; height: 88px; }
+    .spinner-ring::before, .spinner-ring::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 3px solid transparent; }
+    .spinner-ring::before { border-top-color: #8b5cf6; border-right-color: #8b5cf6; animation: spin 1.1s linear infinite; }
+    .spinner-ring::after { border-bottom-color: #06b6d4; border-left-color: #06b6d4; animation: spin 1.6s linear infinite reverse; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* Avatar pulse ring */
-    .avatar-pulse {
-      animation: avatarPulse 2.2s ease-in-out infinite;
-    }
-    @keyframes avatarPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.4); }
-      50%       { box-shadow: 0 0 0 12px rgba(139,92,246,0); }
-    }
-    /* Dot-dot-dot ellipsis */
-    .ellipsis::after {
-      content: '';
-      display: inline-block;
-      width: 1.4em;
-      animation: dots 1.4s steps(4, end) infinite;
-    }
-    @keyframes dots {
-      0%   { content: ''; }
-      25%  { content: '.'; }
-      50%  { content: '..'; }
-      75%  { content: '...'; }
-      100% { content: ''; }
-    }
+    .avatar-pulse { animation: avatarPulse 2.2s ease-in-out infinite; }
+    @keyframes avatarPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.4); } 50% { box-shadow: 0 0 0 12px rgba(139,92,246,0); } }
+    .ellipsis::after { content: ''; display: inline-block; width: 1.4em; animation: dots 1.4s steps(4, end) infinite; }
+    @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
   </style>
 
-  <!-- Global Shared Auth Guard -->
-  <script type="module" src="/src/lib/authGuard.ts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
 
-  <!-- Header Navigation -->
   <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -260,13 +120,6 @@
       </nav>
 
       <div class="flex items-center gap-4">
-        <!-- User Badge -->
-        <div id="user-badge" class="hidden sm:flex items-center gap-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
-          <div class="w-6.5 h-6.5 rounded-full bg-violet-600/30 flex items-center justify-center text-xs font-semibold text-violet-300" id="user-avatar-placeholder">U</div>
-          <span class="text-xs font-medium text-slate-300" id="user-display-name">Username</span>
-          <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-mono" id="user-display-rating">1200 ELO</span>
-        </div>
-
         <button id="logout-btn" class="text-xs font-medium text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/30 px-3 py-1.5 rounded-lg transition-all duration-200 bg-slate-900/50">
           Sign Out
         </button>
@@ -274,803 +127,278 @@
     </div>
   </header>
 
-  <!-- Main Container -->
   <main class="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col justify-center">
-    
     <div class="glass-panel rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
       
-      <!-- Decorative Backdrop glow -->
-      <div class="absolute top-0 right-0 w-64 h-64 bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute bottom-0 left-0 w-64 h-64 bg-cyan-600/5 rounded-full blur-3xl pointer-events-none"></div>
-
       <div class="mb-8">
         <h1 class="text-2xl md:text-3xl font-extrabold text-white">Create Challenge</h1>
         <p class="text-slate-400 text-sm mt-1">Configure your match settings and start playing.</p>
       </div>
 
-      <!-- Mode Selector (Tabs) -->
       <div class="flex border-b border-slate-800 mb-8" id="challenge-tabs">
         <button id="tab-open" class="flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all">
-          Open Challenge
+          Open Matchmaking
         </button>
         <button id="tab-direct" class="flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all">
           Direct Challenge
         </button>
       </div>
 
-      <!-- Step 1: Select Time Control (Common to both modes) -->
       <div class="mb-8">
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Time Format</label>
-        
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="time-formats-container">
-          <!-- Bullet -->
           <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center time-card-selected" data-format="1+0">
             <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Bullet</span>
             <div class="text-xl font-bold text-white mt-1.5">1 min</div>
             <span class="text-xs text-slate-400 font-medium">+0 increment</span>
           </div>
-          <!-- Blitz -->
           <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="3+2">
             <span class="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Blitz</span>
             <div class="text-xl font-bold text-white mt-1.5">3 + 2</div>
             <span class="text-xs text-slate-400 font-medium">3 min + 2s</span>
           </div>
-          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="5+0">
-            <span class="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Blitz</span>
-            <div class="text-xl font-bold text-white mt-1.5">5 min</div>
-            <span class="text-xs text-slate-400 font-medium">+0 increment</span>
-          </div>
-          <!-- Rapid -->
           <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="10+0">
             <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Rapid</span>
             <div class="text-xl font-bold text-white mt-1.5">10 min</div>
             <span class="text-xs text-slate-400 font-medium">+0 increment</span>
           </div>
-          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="15+10">
-            <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Rapid</span>
-            <div class="text-xl font-bold text-white mt-1.5">15 + 10</div>
-            <span class="text-xs text-slate-400 font-medium">15 min + 10s</span>
-          </div>
-          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="custom">
-            <span class="text-[10px] bg-slate-500/10 text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Custom</span>
-            <div class="text-xl font-bold text-white mt-1.5">Custom</div>
-            <span class="text-xs text-slate-400 font-medium">Choose rules</span>
-          </div>
-        </div>
-
-        <!-- Custom inputs (hidden by default) -->
-        <div id="custom-time-inputs" class="hidden mt-4 grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Minutes per side</label>
-            <input type="number" id="custom-minutes" value="10" min="1" max="180" class="w-full glass-input rounded-xl px-4 py-2.5 text-white outline-none" />
-          </div>
-          <div>
-            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Increment (seconds)</label>
-            <input type="number" id="custom-increment" value="0" min="0" max="60" class="w-full glass-input rounded-xl px-4 py-2.5 text-white outline-none" />
-          </div>
         </div>
       </div>
 
-      <!-- Option A: Open Challenge UI -->
-      <div id="open-mode-panel" class="space-y-6">
-        <p class="text-xs text-slate-400">Your challenge will be posted to the lobby queue. If another player creates or joins an open challenge with the same time format, you'll be paired instantly!</p>
-        <button id="find-match-btn" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/35 flex items-center justify-center gap-2">
+      <div id="open-mode-panel" class="visible-panel space-y-6">
+        <p class="text-xs text-slate-400">Your request passes into the atomic pooling queue. If another player searches for the same format, you'll be paired instantly!</p>
+        <button id="find-match-btn" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg flex items-center justify-center gap-2">
           <span>Find Match</span>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         </button>
       </div>
 
-      <!-- Option B: Direct Challenge UI -->
       <div id="direct-mode-panel" class="hidden space-y-6">
-
-        <!-- Time Format Dropdown -->
         <div>
           <label for="direct-time-format" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Time Format</label>
           <select id="direct-time-format" class="glass-select w-full rounded-xl px-4 py-3 text-white font-semibold">
-            <option value="1+0" data-label="Bullet" data-color="amber" data-time="1 min" data-desc="1 minute per side · no increment">⚡ Bullet — 1+0</option>
-            <option value="3+2" data-label="Blitz" data-color="red" data-time="3 + 2" data-desc="3 minutes + 2 second increment">🔥 Blitz — 3+2</option>
-            <option value="10+0" data-label="Rapid" data-color="emerald" data-time="10 min" data-desc="10 minutes per side · no increment">🌿 Rapid — 10+0</option>
+            <option value="1+0" data-label="Bullet" data-time="1 min" data-desc="1 minute per side">⚡ Bullet — 1+0</option>
+            <option value="3+2" data-label="Blitz" data-time="3 + 2" data-desc="3 minutes + 2 second increment">🔥 Blitz — 3+2</option>
+            <option value="10+0" data-label="Rapid" data-time="10 min" data-desc="10 minutes per side">🌿 Rapid — 10+0</option>
           </select>
-
-          <!-- Dynamic format preview pill -->
-          <div class="format-preview" id="format-preview-bar">
-            <span class="fp-badge" id="fp-badge" style="background:rgba(245,158,11,0.12);color:#fbbf24">Bullet</span>
-            <div>
-              <div class="fp-time" id="fp-time">1 min</div>
-              <div class="fp-desc" id="fp-desc">1 minute per side · no increment</div>
-            </div>
-            <div class="ml-auto">
-              <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
         </div>
 
-        <!-- Opponent Username Input -->
         <div>
-          <label for="target-username" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-            Opponent's Username
-            <span class="text-rose-400 ml-0.5">*</span>
-          </label>
-
+          <label for="target-username" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Opponent's Username <span class="text-rose-400">*</span></label>
           <div class="input-icon-wrap">
-            <input
-              type="text"
-              id="target-username"
-              placeholder="e.g. MagnusCarlsen"
-              autocomplete="off"
-              spellcheck="false"
-              class="w-full glass-input rounded-xl py-3 pr-4 text-white font-medium outline-none transition-all duration-200"
-            />
-            <!-- @ icon -->
-            <svg class="input-icon w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-            </svg>
+            <input type="text" id="target-username" placeholder="e.g. Atharv" class="w-full glass-input rounded-xl py-3 pr-4 text-white font-medium outline-none" />
           </div>
-
-          <!-- Helper / validation text -->
-          <p class="text-[11px] mt-1.5 transition-all" id="username-hint">
-            <span class="text-slate-500">Usernames are case-sensitive. The invitation goes directly to their active session.</span>
-          </p>
+          <p class="text-[11px] mt-1.5 text-slate-500" id="username-hint">Usernames are case-sensitive. The invitation goes directly to their live session.</p>
         </div>
 
-        <!-- Send Button -->
-        <button
-          id="send-challenge-btn"
-          disabled
-          class="w-full bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-cyan-600/25 hover:shadow-cyan-600/35 flex items-center justify-center gap-2.5"
-        >
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
+        <button id="send-challenge-btn" disabled class="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 opacity-50 cursor-not-allowed flex items-center justify-center gap-2.5">
           <span id="send-btn-label">Send Challenge Invitation</span>
         </button>
-
-        <p class="text-[11px] text-slate-600 text-center -mt-2">
-          The challenged player will receive a pop-up notification in their lobby.
-        </p>
       </div>
 
-      <!-- Waiting Overlay / Loading State (kept for open-challenge mode) -->
       <div id="waiting-overlay" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-10">
         <div class="relative w-24 h-24 flex items-center justify-center">
           <div class="absolute inset-0 rounded-full border-4 border-violet-500/20 border-t-violet-500 animate-spin"></div>
-          <svg class="w-8 h-8 text-violet-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM13 12H17V14H11V7H13V12Z" />
-          </svg>
         </div>
-        <h3 class="text-xl font-bold text-white mt-6" id="waiting-status-title">Waiting for Partner</h3>
-        <p class="text-slate-400 text-sm mt-2 max-w-sm" id="waiting-status-desc">Looking for another player...</p>
-        <button id="cancel-challenge-btn" class="mt-8 border border-slate-800 hover:border-slate-700 bg-slate-900/50 hover:bg-slate-900 text-slate-300 font-semibold px-6 py-2.5 rounded-xl transition-all text-sm">
-          Cancel Challenge
-        </button>
+        <h3 class="text-xl font-bold text-white mt-6" id="waiting-status-title">Searching for Opponent</h3>
+        <p class="text-slate-400 text-sm mt-2 max-w-sm" id="waiting-status-desc">Entering matchmaking pool...</p>
+        <button id="cancel-challenge-btn" class="mt-8 border border-slate-800 bg-slate-900/50 text-slate-300 font-semibold px-6 py-2.5 rounded-xl text-sm">Cancel Search</button>
       </div>
 
     </div>
   </main>
 
-  <!-- ░░ Direct-challenge Waiting Modal ░░ -->
-  <div id="direct-waiting-modal" role="dialog" aria-modal="true" aria-labelledby="dwm-title">
-    <div class="relative w-full max-w-sm mx-4 glass-panel rounded-3xl p-8 text-center shadow-2xl overflow-hidden">
+  <script type="text/javascript">
+    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
+    
+    let supabase;
+    let currentUser = null;
+    let currentQueueChannel = null;
+    let poolTicker = null;
+    let elapsedSeconds = 0;
 
-      <!-- Ambient glows -->
-      <div class="absolute -top-10 -right-10 w-40 h-40 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none"></div>
-
-      <!-- Dual-ring spinner -->
-      <div class="flex justify-center mb-6">
-        <div class="spinner-ring"></div>
-      </div>
-
-      <!-- Status text -->
-      <p class="text-xs font-bold uppercase tracking-widest text-violet-400 mb-1">Direct Challenge Sent</p>
-      <h2 class="text-xl font-extrabold text-white" id="dwm-title">
-        Waiting for <span id="dwm-opponent" class="text-cyan-300">…</span>
-      </h2>
-      <p class="text-slate-400 text-sm mt-1.5">
-        <span id="dwm-format" class="font-semibold text-slate-200"></span> match
-      </p>
-
-      <!-- Divider -->
-      <div class="my-5 border-t border-slate-800"></div>
-
-      <!-- Challenger vs Opponent -->
-      <div class="flex items-center justify-center gap-4">
-        <!-- Me -->
-        <div class="flex flex-col items-center gap-1.5">
-          <div id="dwm-my-avatar" class="avatar-pulse w-11 h-11 rounded-full bg-violet-600/30 border border-violet-500/40 flex items-center justify-center text-lg font-bold text-violet-200">?</div>
-          <span class="text-[11px] font-semibold text-slate-300" id="dwm-my-name">You</span>
-        </div>
-        <!-- VS badge -->
-        <div class="flex flex-col items-center gap-0.5">
-          <span class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">vs</span>
-          <svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-        <!-- Opponent -->
-        <div class="flex flex-col items-center gap-1.5">
-          <div id="dwm-opp-avatar" class="w-11 h-11 rounded-full bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center text-lg font-bold text-cyan-300">?</div>
-          <span class="text-[11px] font-semibold text-slate-300" id="dwm-opp-name">…</span>
-        </div>
-      </div>
-
-      <!-- Elapsed timer -->
-      <p class="mt-5 text-xs text-slate-500">
-        Waiting <span id="dwm-elapsed" class="font-mono text-slate-400">0s</span>
-        <span class="ellipsis"></span>
-      </p>
-
-      <!-- Cancel -->
-      <button
-        id="dwm-cancel-btn"
-        class="mt-6 w-full border border-slate-700 hover:border-rose-500/50 bg-slate-900/60 hover:bg-rose-950/30 text-slate-300 hover:text-rose-400 font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 text-sm"
-      >
-        Cancel &amp; Withdraw
-      </button>
-
-      <!-- Declined notice (hidden by default) -->
-      <div id="dwm-declined-notice" class="hidden mt-4 p-3 bg-rose-950/40 border border-rose-500/30 rounded-xl text-xs text-rose-300 font-medium">
-        ⚠ Challenge was declined or expired.
-      </div>
-    </div>
-  </div>
-
-  <!-- Challenge page logic -->
-  <script type="text/javascript" id="pairing-logic-script">
-    document.addEventListener("DOMContentLoaded", () => {
-      console.log("Challenge page loaded.");
-
-      // ── Logout ────────────────────────────────────────────
-      const logoutBtn = document.getElementById("logout-btn");
-      if (logoutBtn && typeof supabase !== 'undefined') {
-        logoutBtn.addEventListener("click", async () => {
-          await supabase.auth.signOut();
-          window.location.href = '/index.html';
-        });
+    window.addEventListener('load', async () => {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = '/index.html';
+        return;
       }
+      currentUser = session.user;
 
-      // ── Tab switching ──────────────────────────────────────
-      const tabOpen   = document.getElementById("tab-open");
+      initializeFormControls();
+    });
+
+    function initializeFormControls() {
+      const tabOpen = document.getElementById("tab-open");
       const tabDirect = document.getElementById("tab-direct");
-      const openPanel   = document.getElementById("open-mode-panel");
+      const openPanel = document.getElementById("open-mode-panel");
       const directPanel = document.getElementById("direct-mode-panel");
-
-      const ACTIVE_TAB   = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all";
-      const INACTIVE_TAB = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all";
-
-      function activateTab(which) {
-        if (which === 'direct') {
-          tabDirect.className = ACTIVE_TAB;
-          tabOpen.className   = INACTIVE_TAB;
-          directPanel.classList.remove("hidden");
-          openPanel.classList.add("hidden");
-        } else {
-          tabOpen.className   = ACTIVE_TAB;
-          tabDirect.className = INACTIVE_TAB;
-          openPanel.classList.remove("hidden");
-          directPanel.classList.add("hidden");
-        }
-      }
-
-      tabOpen.addEventListener("click",   () => activateTab('open'));
-      tabDirect.addEventListener("click", () => activateTab('direct'));
-
-      // ── URL param: auto-activate tab & pre-fill username ──
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('mode') === 'direct') {
-        activateTab('direct');
-        const preUser = params.get('u');
-        if (preUser) {
-          document.getElementById('target-username').value = decodeURIComponent(preUser);
-          validateUsername();
-        }
-      }
-
-      // ── Open-challenge time card selection (grid) ─────────
-      const timeCards      = document.querySelectorAll("#time-formats-container > div");
-      const customTimeInputs = document.getElementById("custom-time-inputs");
-
-      timeCards.forEach(card => {
-        card.addEventListener("click", () => {
-          timeCards.forEach(c => c.classList.remove("time-card-selected"));
-          card.classList.add("time-card-selected");
-          customTimeInputs.classList.toggle("hidden", card.getAttribute("data-format") !== "custom");
-        });
-      });
-
-      // ── Direct-challenge: format dropdown preview ─────────
-      const formatSelect = document.getElementById("direct-time-format");
-      const fpBadge  = document.getElementById("fp-badge");
-      const fpTime   = document.getElementById("fp-time");
-      const fpDesc   = document.getElementById("fp-desc");
-
-      const FORMAT_STYLES = {
-        '1+0':  { bg: 'rgba(245,158,11,0.12)',  color: '#fbbf24' },
-        '3+2':  { bg: 'rgba(239,68,68,0.12)',   color: '#f87171' },
-        '10+0': { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
-      };
-
-      function updateFormatPreview() {
-        const opt    = formatSelect.options[formatSelect.selectedIndex];
-        const val    = formatSelect.value;
-        const style  = FORMAT_STYLES[val] || FORMAT_STYLES['1+0'];
-
-        fpBadge.textContent        = opt.dataset.label || val;
-        fpBadge.style.background   = style.bg;
-        fpBadge.style.color        = style.color;
-        fpTime.textContent         = opt.dataset.time  || val;
-        fpDesc.textContent         = opt.dataset.desc  || '';
-
-        // Update send button label
-        const label = document.getElementById('send-btn-label');
-        if (label) label.textContent = `Send ${opt.dataset.label || ''} Challenge`;
-      }
-
-      formatSelect.addEventListener('change', updateFormatPreview);
-      updateFormatPreview(); // init
-
-      // ── Username validation ───────────────────────────────
       const usernameInput = document.getElementById('target-username');
-      const usernameHint  = document.getElementById('username-hint');
-      const sendBtn       = document.getElementById('send-challenge-btn');
+      const sendChallengeBtn = document.getElementById('send-challenge-btn');
 
-      function validateUsername() {
-        const val = usernameInput.value.trim();
-        usernameInput.classList.remove('is-valid', 'is-invalid');
-
-        if (val.length === 0) {
-          usernameHint.innerHTML = '<span class="text-slate-500">Usernames are case-sensitive. The invitation goes directly to their active session.</span>';
-          sendBtn.disabled = true;
-          return;
-        }
-
-        if (val.length < 3) {
-          usernameInput.classList.add('is-invalid');
-          usernameHint.innerHTML = '<span class="text-rose-400">Username must be at least 3 characters.</span>';
-          sendBtn.disabled = true;
-          return;
-        }
-
-        // Basic valid pattern: letters, digits, underscores, hyphens
-        if (!/^[A-Za-z0-9_\-]+$/.test(val)) {
-          usernameInput.classList.add('is-invalid');
-          usernameHint.innerHTML = '<span class="text-rose-400">Username may only contain letters, numbers, underscores, or hyphens.</span>';
-          sendBtn.disabled = true;
-          return;
-        }
-
-        usernameInput.classList.add('is-valid');
-        usernameHint.innerHTML = `<span class="text-emerald-400">✓ Ready to challenge <strong>${val}</strong></span>`;
-        sendBtn.disabled = false;
-      }
-
-      usernameInput.addEventListener('input', validateUsername);
-
-      // ══════════════════════════════════════════════════════
-      //  DIRECT CHALLENGE — SUBMIT FLOW
-      // ══════════════════════════════════════════════════════
-
-      // DOM refs for the waiting modal
-      const waitingModal     = document.getElementById('direct-waiting-modal');
-      const dwmOpponent      = document.getElementById('dwm-opponent');
-      const dwmFormat        = document.getElementById('dwm-format');
-      const dwmMyAvatar      = document.getElementById('dwm-my-avatar');
-      const dwmMyName        = document.getElementById('dwm-my-name');
-      const dwmOppAvatar     = document.getElementById('dwm-opp-avatar');
-      const dwmOppName       = document.getElementById('dwm-opp-name');
-      const dwmElapsed       = document.getElementById('dwm-elapsed');
-      const dwmCancelBtn     = document.getElementById('dwm-cancel-btn');
-      const dwmDeclined      = document.getElementById('dwm-declined-notice');
-
-      // State kept across async handlers
-      let pendingGameId      = null;   // UUID of the games row we created
-      let waitingChannel     = null;   // Supabase realtime channel
-      let elapsedTimer       = null;   // setInterval for the elapsed counter
-      let elapsedSeconds     = 0;
-      let currentUserId      = null;
-      let currentUsername    = null;
-
-      // ── Helper: show the waiting modal ──────────────────────
-      function showWaitingModal(opponentName, formatLabel) {
-        dwmOpponent.textContent  = opponentName;
-        dwmOppName.textContent   = opponentName;
-        dwmOppAvatar.textContent = opponentName.charAt(0).toUpperCase();
-        dwmFormat.textContent    = formatLabel;
-
-        if (currentUsername) {
-          dwmMyName.textContent   = currentUsername;
-          dwmMyAvatar.textContent = currentUsername.charAt(0).toUpperCase();
-        }
-
-        elapsedSeconds = 0;
-        dwmElapsed.textContent = '0s';
-        dwmDeclined.classList.add('hidden');
-
-        elapsedTimer = setInterval(() => {
-          elapsedSeconds++;
-          if (elapsedSeconds < 60) {
-            dwmElapsed.textContent = `${elapsedSeconds}s`;
-          } else {
-            const m = Math.floor(elapsedSeconds / 60);
-            const s = elapsedSeconds % 60;
-            dwmElapsed.textContent = `${m}m ${s}s`;
-          }
-        }, 1000);
-
-        waitingModal.classList.add('show');
-        document.body.style.overflow = 'hidden'; // prevent bg scroll
-      }
-
-      // ── Helper: hide the waiting modal ──────────────────────
-      function hideWaitingModal() {
-        waitingModal.classList.remove('show');
-        document.body.style.overflow = '';
-        clearInterval(elapsedTimer);
-      }
-
-      // ── Helper: tear down the realtime subscription ─────────
-      function teardownWaitingChannel() {
-        if (waitingChannel && typeof supabase !== 'undefined') {
-          supabase.removeChannel(waitingChannel);
-          waitingChannel = null;
-        }
-      }
-
-      // ── Cancel button ────────────────────────────────────────
-      dwmCancelBtn.addEventListener('click', async () => {
-        dwmCancelBtn.disabled = true;
-        dwmCancelBtn.textContent = 'Cancelling…';
-
-        teardownWaitingChannel();
-        hideWaitingModal();
-
-        // Delete the pending game row so the opponent can't accept it
-        if (pendingGameId && typeof supabase !== 'undefined') {
-          await supabase.from('games').delete().eq('id', pendingGameId);
-          pendingGameId = null;
-        }
-
-        // Reset send button
-        const sendBtnLabel = document.getElementById('send-btn-label');
-        sendBtnLabel.textContent = `Send ${formatSelect.options[formatSelect.selectedIndex].dataset.label || ''} Challenge`;
-        sendBtn.disabled = false;
-        usernameHint.innerHTML = '<span class="text-slate-500">Challenge cancelled.</span>';
-        dwmCancelBtn.disabled = false;
-        dwmCancelBtn.textContent = 'Cancel & Withdraw';
+      // Tab Management
+      tabOpen.addEventListener("click", () => {
+        tabOpen.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400";
+        tabDirect.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400";
+        openPanel.classList.remove("hidden");
+        directPanel.classList.add("hidden");
       });
 
-      // ── Main send handler ────────────────────────────────────
-      sendBtn.addEventListener('click', async () => {
-        const targetUser  = usernameInput.value.trim();
-        const timeFormat  = formatSelect.value;
-        const formatLabel = formatSelect.options[formatSelect.selectedIndex].dataset.label || timeFormat;
-        if (!targetUser) return;
+      tabDirect.addEventListener("click", () => {
+        tabDirect.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400";
+        tabOpen.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400";
+        directPanel.classList.remove("hidden");
+        openPanel.classList.add("hidden");
+      });
 
-        sendBtn.disabled = true;
-        const origLabel  = document.getElementById('send-btn-label').textContent;
-        document.getElementById('send-btn-label').textContent = 'Sending…';
-
-        try {
-          if (typeof supabase === 'undefined') {
-            throw new Error('Supabase client not initialised.');
-          }
-
-          // ── 1. Resolve current user ─────────────────────────
-          const { data: { session }, error: sessErr } = await supabase.auth.getSession();
-          if (sessErr || !session) throw new Error('You are not logged in.');
-          currentUserId = session.user.id;
-
-          // Fetch challenger's own profile for display name
-          const { data: myProfile } = await supabase
-            .from('profiles')
-            .select('username')
-            .eq('id', currentUserId)
-            .single();
-          if (myProfile) currentUsername = myProfile.username;
-
-          // ── 2. Look up opponent UUID from public.profiles ───
-          const { data: profileRows, error: profileErr } = await supabase
-            .from('profiles')
-            .select('id, username')
-            .eq('username', targetUser)   // case-sensitive match
-            .limit(1);
-
-          if (profileErr || !profileRows || profileRows.length === 0) {
-            throw new Error(`Player "${targetUser}" not found. Check spelling — usernames are case-sensitive.`);
-          }
-
-          const opponentId = profileRows[0].id;
-
-          if (currentUserId === opponentId) {
-            throw new Error("You can't challenge yourself!");
-          }
-
-          // ── 3. Insert pending game row into public.games ────
-          //      status = 'pending'   → waiting for opponent to accept
-          //      initiator_id        → the challenger (current user)
-          //      white_player_id     → challenger plays White by default
-          //      black_player_id     → opponent plays Black
-          const initialBoard = {
-            "a8":{"type":"rook","color":"black"},"b8":{"type":"knight","color":"black"},"c8":{"type":"bishop","color":"black"},"d8":{"type":"queen","color":"black"},"e8":{"type":"king","color":"black"},"f8":{"type":"bishop","color":"black"},"g8":{"type":"knight","color":"black"},"h8":{"type":"rook","color":"black"},
-            "a7":{"type":"pawn","color":"black"},"b7":{"type":"pawn","color":"black"},"c7":{"type":"pawn","color":"black"},"d7":{"type":"pawn","color":"black"},"e7":{"type":"pawn","color":"black"},"f7":{"type":"pawn","color":"black"},"g7":{"type":"pawn","color":"black"},"h7":{"type":"pawn","color":"black"},
-            "a2":{"type":"pawn","color":"white"},"b2":{"type":"pawn","color":"white"},"c2":{"type":"pawn","color":"white"},"d2":{"type":"pawn","color":"white"},"e2":{"type":"pawn","color":"white"},"f2":{"type":"pawn","color":"white"},"g2":{"type":"pawn","color":"white"},"h2":{"type":"pawn","color":"white"},
-            "a1":{"type":"rook","color":"white"},"b1":{"type":"knight","color":"white"},"c1":{"type":"bishop","color":"white"},"d1":{"type":"queen","color":"white"},"e1":{"type":"king","color":"white"},"f1":{"type":"bishop","color":"white"},"g1":{"type":"knight","color":"white"},"h1":{"type":"rook","color":"white"}
-          };
-
-          const { data: newGame, error: gameErr } = await supabase
-            .from('games')
-            .insert({
-              initiator_id:          currentUserId,
-              white_player_id:       currentUserId,
-              black_player_id:       opponentId,
-              white_player_username: currentUsername || session.user.email.split('@')[0],
-              black_player_username: targetUser,
-              time_format:           timeFormat,
-              board_state:           initialBoard,
-              current_turn:          'white',
-              status:                'pending'
-            })
-            .select('id')
-            .single();
-
-          if (gameErr) throw new Error(`Failed to create game: ${gameErr.message}`);
-          pendingGameId = newGame.id;
-
-          // ── 4. Show the waiting modal ───────────────────────
-          showWaitingModal(targetUser, formatLabel);
-          document.getElementById('send-btn-label').textContent = origLabel;
-
-          // ── 5. Real-time subscription on this game row ──────
-          //      Fires when opponent (or server) changes status.
-          waitingChannel = supabase
-            .channel(`direct-game-${pendingGameId}`)
-            .on('postgres_changes', {
-              event:  'UPDATE',
-              schema: 'public',
-              table:  'games',
-              filter: `id=eq.${pendingGameId}`
-            }, (payload) => {
-              const row = payload.new;
-              if (!row) return;
-
-              if (row.status === 'active') {
-                // Opponent accepted — head to the board
-                teardownWaitingChannel();
-                clearInterval(elapsedTimer);
-                window.location.href = `/pages/play.html?gameId=${pendingGameId}`;
-
-              } else if (row.status === 'rejected' || row.status === 'cancelled') {
-                // Opponent declined
-                teardownWaitingChannel();
-                clearInterval(elapsedTimer);
-                dwmDeclined.classList.remove('hidden');
-                dwmCancelBtn.textContent = 'Close';
-                // Auto-close after 3 s
-                setTimeout(() => {
-                  hideWaitingModal();
-                  pendingGameId = null;
-                  sendBtn.disabled = false;
-                  usernameHint.innerHTML = '<span class="text-rose-400">Challenge was declined by the opponent.</span>';
-                }, 3000);
-              }
-            })
-            .subscribe((status) => {
-              console.log(`[direct-challenge] realtime status: ${status}`);
-            });
-
-        } catch (err) {
-          console.error('Send challenge error:', err);
-          usernameHint.innerHTML = `<span class="text-rose-400">⚠ ${err.message}</span>`;
-          usernameInput.classList.add('is-invalid');
-          document.getElementById('send-btn-label').textContent = origLabel;
-          sendBtn.disabled = false;
-          hideWaitingModal();
+      // Target field activation listener
+      usernameInput.addEventListener('input', () => {
+        const value = usernameInput.value.trim();
+        if (value.length >= 3) {
+          sendChallengeBtn.disabled = false;
+          sendChallengeBtn.className = "w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold py-3.5 px-6 rounded-xl cursor-pointer";
+        } else {
+          sendChallengeBtn.disabled = true;
+          sendChallengeBtn.className = "w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold py-3.5 px-6 rounded-xl opacity-50 cursor-not-allowed";
         }
       });
 
-      // ══════════════════════════════════════════════════════
-      //  OPEN CHALLENGE — FIND MATCH FLOW
-      // ══════════════════════════════════════════════════════
+      // Logout integration
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        window.location.href = '/index.html';
+      });
 
-      const findMatchBtn       = document.getElementById('find-match-btn');
-      const waitingOverlay     = document.getElementById('waiting-overlay');
-      const cancelChallengeBtn = document.getElementById('cancel-challenge-btn');
-      const waitingStatusTitle = document.getElementById('waiting-status-title');
-      const waitingStatusDesc  = document.getElementById('waiting-status-desc');
+      // Action Handlers
+      document.getElementById('find-match-btn').addEventListener('click', executePoolPairing);
+      document.getElementById('cancel-challenge-btn').addEventListener('click', abortMatchmakingSearch);
+      sendChallengeBtn.addEventListener('click', executeDirectChallengeInvitation);
+    }
 
-      let openQueueId      = null;  // UUID of our matchmaking_queue row
-      let openQueueChannel = null;  // Realtime channel watching for game_id
-      let openElapsedTimer = null;  // Seconds-elapsed ticker
-      let openElapsedSecs  = 0;
-      let openTimeFormat   = null;  // format string kept for display
+    // MATCHMAKING POOL PIPELINE (Option A)
+    async function executePoolPairing() {
+      const selectedCard = document.querySelector('#time-formats-container .time-card-selected') || document.querySelector('[data-format="1+0"]');
+      const formatString = selectedCard.getAttribute('data-format');
+      
+      document.getElementById('waiting-overlay').classList.remove('hidden');
+      elapsedSeconds = 0;
+      
+      poolTicker = setInterval(() => {
+        elapsedSeconds++;
+        document.getElementById('waiting-status-desc').textContent = `Waiting for a ${formatString} match... (${elapsedSeconds}s)`;
+      }, 1000);
 
-      // ── Show / hide the inline waiting overlay ───────────────────
-      function showOpenWaiting(fmt) {
-        waitingStatusTitle.textContent = 'Searching for Opponent';
-        waitingStatusDesc.textContent  = `Waiting for a ${fmt} match…`;
-        waitingOverlay.classList.remove('hidden');
-        findMatchBtn.disabled = true;
-        openElapsedSecs = 0;
-        clearInterval(openElapsedTimer);
-        openElapsedTimer = setInterval(() => {
-          openElapsedSecs++;
-          const t = openElapsedSecs < 60
-            ? `${openElapsedSecs}s`
-            : `${Math.floor(openElapsedSecs / 60)}m ${openElapsedSecs % 60}s`;
-          waitingStatusDesc.textContent = `Waiting for a ${fmt} match… ${t}`;
-        }, 1000);
-      }
+      try {
+        // Run the unified atomic pairing routine
+        const { data, error } = await supabase.rpc('join_matchmaking_pool', {
+          p_player_id: currentUser.id,
+          p_time_format: formatString
+        });
 
-      function hideOpenWaiting() {
-        waitingOverlay.classList.add('hidden');
-        findMatchBtn.disabled = false;
-        findMatchBtn.querySelector('span').textContent = 'Find Match';
-        clearInterval(openElapsedTimer);
-      }
+        if (error) throw error;
 
-      function teardownOpenChannel() {
-        if (openQueueChannel && typeof supabase !== 'undefined') {
-          supabase.removeChannel(openQueueChannel);
-          openQueueChannel = null;
-        }
-      }
+        if (data.match_status === 'paired') {
+          clearTimeout(poolTicker);
+          window.location.href = `/pages/play.html?gameId=${data.game_id}`;
+        } else {
+          // Listen for a secondary competitor claiming our pool position row
+          currentQueueChannel = supabase
+            .channel('public:matchmaking_queue')
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'matchmaking_queue', filter: `player_id=eq.${currentUser.id}` }, async () => {
+              // Row removed means we were claimed! Find the game allocation row
+              const { data: gameRow } = await supabase
+                .from('games')
+                .select('id')
+                .or(`white_player_id.eq.${currentUser.id},black_player_id.eq.${currentUser.id}`)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
-      // ── Cancel: remove our queue row and reset UI ────────────────
-      async function cancelOpenMatch() {
-        teardownOpenChannel();
-        hideOpenWaiting();
-        if (openQueueId && typeof supabase !== 'undefined') {
-          await supabase
-            .from('matchmaking_queue')
-            .delete()
-            .eq('id', openQueueId);
-          openQueueId = null;
-        }
-      }
-
-      cancelChallengeBtn.addEventListener('click', cancelOpenMatch);
-
-      // ── Main handler ─────────────────────────────────────────────
-      findMatchBtn.addEventListener('click', async () => {
-        if (typeof supabase === 'undefined') {
-          alert('Connection error — please refresh and try again.');
-          return;
-        }
-
-        // Resolve selected time format from the card grid
-        const selectedCard = document.querySelector('#time-formats-container .time-card-selected');
-        let timeFormat = selectedCard ? selectedCard.getAttribute('data-format') : '1+0';
-        if (timeFormat === 'custom') {
-          const mins = parseInt(document.getElementById('custom-minutes').value, 10) || 10;
-          const inc  = parseInt(document.getElementById('custom-increment').value, 10) || 0;
-          timeFormat = `${mins}+${inc}`;
-        }
-        openTimeFormat = timeFormat;
-
-        findMatchBtn.disabled = true;
-        findMatchBtn.querySelector('span').textContent = 'Searching…';
-
-        try {
-          // 1. Resolve current user ─────────────────────────────────
-          const { data: { session }, error: sessErr } = await supabase.auth.getSession();
-          if (sessErr || !session) throw new Error('You are not logged in.');
-          const myId = session.user.id;
-
-          const { data: myProfile } = await supabase
-            .from('profiles')
-            .select('username')
-            .eq('id', myId)
-            .single();
-          const myUsername = myProfile?.username || session.user.email.split('@')[0];
-
-          // 2. Query the queue for a waiting opponent ───────────────
-          //    Conditions: same format, not yet matched (game_id IS NULL), not self.
-          const { data: candidates, error: qErr } = await supabase
-            .from('matchmaking_queue')
-            .select('id, user_id, username')
-            .eq('time_format', timeFormat)
-            .is('game_id', null)
-            .neq('user_id', myId)
-            .order('created_at', { ascending: true })
-            .limit(1);
-
-          if (qErr) throw new Error(`Queue query failed: ${qErr.message}`);
-
-          if (candidates && candidates.length > 0) {
-            // ── MATCH FOUND — call the RPC ──────────────────────────
-            findMatchBtn.querySelector('span').textContent = 'Match Found! Starting…';
-
-            const opponent = candidates[0];
-
-            const { data: gameId, error: rpcErr } = await supabase
-              .rpc('initialize_open_match', {
-                p_queue_row_id:    opponent.id,
-                p_joiner_id:       myId,
-                p_joiner_username: myUsername,
-                p_time_format:     timeFormat
-              });
-
-            if (rpcErr) {
-              // Row was claimed by a third player in the same instant —
-              // fall through to the "join queue" path instead.
-              if (rpcErr.message && rpcErr.message.includes('match_already_claimed')) {
-                console.warn('[open-challenge] race: row already claimed, joining queue instead');
-                throw new Error('That spot was just taken — you\'ve been added to the queue. Hang tight!');
+              if (gameRow) {
+                cleanupSearchTimers();
+                window.location.href = `/pages/play.html?gameId=${gameRow.id}`;
               }
-              throw new Error(`Failed to start game: ${rpcErr.message}`);
+            })
+            .subscribe();
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Matchmaking error: " + err.message);
+        abortMatchmakingSearch();
+      }
+    }
+
+    async function abortMatchmakingSearch() {
+      cleanupSearchTimers();
+      await supabase.from('matchmaking_queue').delete().eq('player_id', currentUser.id);
+    }
+
+    function cleanupSearchTimers() {
+      clearInterval(poolTicker);
+      document.getElementById('waiting-overlay').classList.add('hidden');
+      if (currentQueueChannel) {
+        supabase.removeChannel(currentQueueChannel);
+        currentQueueChannel = null;
+      }
+    }
+
+    // DIRECT INVITE ACTION PIPELINE (Option B)
+    async function executeDirectChallengeInvitation() {
+      const targetUser = document.getElementById('target-username').value.trim();
+      const timeFormat = document.getElementById('direct-time-format').value;
+      const hint = document.getElementById('username-hint');
+
+      try {
+        // Resolve Target Profile Unique Identity
+        const { data: profile, error: profErr } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', targetUser)
+          .maybeSingle();
+
+        if (profErr || !profile) throw new Error("Player not found. Check character case usage.");
+        if (profile.id === currentUser.id) throw new Error("You cannot challenge yourself.");
+
+        // Generate immediate game object context mapping
+        const { data: newGame, error: gameErr } = await supabase
+          .from('games')
+          .insert({
+            white_player_id: currentUser.id,
+            black_player_id: profile.id,
+            time_format: timeFormat,
+            status: 'pending'
+          })
+          .select('id')
+          .single();
+
+        if (gameErr) throw gameErr;
+
+        hint.innerHTML = `<span class="text-emerald-400 animate-pulse">Challenge sent to @${targetUser}! Waiting for acceptance...</span>`;
+        
+        // Listen for the opponent accepting this specific match invitation
+        const inviteChannel = supabase
+          .channel(`game_status_${newGame.id}`)
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${newGame.id}` }, (payload) => {
+            if (payload.new.status === 'active') {
+              supabase.removeChannel(inviteChannel);
+              window.location.href = `/pages/play.html?gameId=${newGame.id}`;
             }
+          })
+          .subscribe();
 
-            // Navigate the joiner directly to the new game
-            window.location.href = `/pages/play.html?gameId=${gameId}`;
+      } catch (err) {
+        hint.innerHTML = `<span class="text-rose-400">⚠️ ${err.message}</span>`;
+      }
+    }
 
-          } else {
-            // ── NO MATCH — INSERT SELF INTO QUEUE ──────────────────
-            //    upsert handles the edge case where we still have a stale row.
-            const { data: queueRow, error: insErr } = await supabase
-              .from('matchmaking_queue')
-              .upsert(
-                { user_id: myId, username: myUsername, time_format: timeFormat, game_id: null },
-                { onConflict: 'user_id', ignoreDuplicates: false }
-              )
-              .select('id')
-              .single();
-
-            if (insErr) throw new Error(`Failed to join queue: ${insErr.message}`);
-            openQueueId = queueRow.id;
-
-            showOpenWaiting(timeFormat);
-
-            // 3. Realtime: watch for our queue row being UPDATE'd with a game_id.
-            //    This fires the instant the joiner's RPC stamps our row.
-            openQueueChannel = supabase
-              .channel(`open-queue-${openQueueId}`)
-              .on(
-                'postgres_changes',
-                {
-                  event:  'UPDATE',
-                  schema: 'public',
-                  table:  'matchmaking_queue',
-                  filter: `id=eq.${openQueueId}`
-                },
-                (payload) => {
-                  const row = payload.new;
-                  if (row && row.game_id) {
-                    // We've been matched — navigate to the game
-                    teardownOpenChannel();
-                    clearInterval(openElapsedTimer);
-                    window.location.href = `/pages/play.html?gameId=${row.game_id}`;
-                  }
-                }
-              )
-              .subscribe((status) => {
-                console.log(`[open-queue] realtime: ${status}`);
-              });
-          }
-
-        } catch (err) {
-          console.error('[open-challenge] error:', err);
-          // Show error inside the overlay title if it's visible, else reset
-          waitingStatusTitle.textContent = 'Error';
-          waitingStatusDesc.textContent  = err.message;
-          // If we ended up in the overlay, leave it visible so user can cancel;
-          // otherwise just re-enable the button.
-          if (waitingOverlay.classList.contains('hidden')) {
-            findMatchBtn.disabled = false;
-            findMatchBtn.querySelector('span').textContent = 'Find Match';
-          }
-        }
-      });
-
-      // ── Cleanup on page unload ───────────────────────────────────
-      window.addEventListener('beforeunload', () => {
-        teardownWaitingChannel();
-        teardownOpenChannel();
-        clearInterval(elapsedTimer);
-        clearInterval(openElapsedTimer);
+    // Setup format block selectors
+    document.querySelectorAll('#time-formats-container > div').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('#time-formats-container > div').forEach(c => c.classList.remove('time-card-selected'));
+        card.classList.add('time-card-selected');
       });
     });
   </script>
