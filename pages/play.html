@@ -458,7 +458,7 @@
     let clockBlackSnap   = 0;    // black_time_remaining (seconds) at snapshot
     let clockActiveColor = null; // whose turn was active at snapshot
     let clockSnapAt      = 0;    // Date.now() when snapshot was taken
-    let timeoutFired     = false; // one-shot latch: prevents double endGame write
+    const timeoutFiredRef = { current: false }; // one-shot latch: prevents double endGame write
 
     /* ── Helpers ────────────────────────────────────────────────────────── */
 
@@ -718,6 +718,35 @@
       return moves;
     }
 
+    function hasLegalMoves(boardState, color) {
+      const squares = Object.keys(boardState);
+      for (const fromAlg of squares) {
+        const piece = boardState[fromAlg];
+        if (!piece || piece.color !== color) continue;
+
+        if (piece.type === 'pawn') {
+          const pm = pawnMoves(boardState, fromAlg, color);
+          for (const t of pm) {
+            const after = simulateMove(boardState, fromAlg, t);
+            if (!isInCheck(after, color)) return true;
+          }
+        } else {
+          for (const f of 'abcdefgh'.split('')) {
+            for (let r = 1; r <= 8; r++) {
+              const toAlg = f + r;
+              if (toAlg === fromAlg) continue;
+              const target = boardState[toAlg];
+              if (target && target.color === color) continue;
+              if (!rawCanAttack(boardState, fromAlg, toAlg, piece)) continue;
+              const after = simulateMove(boardState, fromAlg, toAlg);
+              if (!isInCheck(after, color)) return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
     /* ── Click handler ──────────────────────────────────────────────────── */
     function onSquareClick(alg) {
       if (!game || game.status !== 'active') return;
@@ -791,6 +820,8 @@
       // Detect check / checkmate for the RPC call
       const afterBoard  = optimistic;
       const isCheck     = isInCheck(afterBoard, nextTurn);
+      const isCheckmate = isCheck && !hasLegalMoves(afterBoard, nextTurn);
+      const isStalemate = !isCheck && !hasLegalMoves(afterBoard, nextTurn);
 
       try {
         const { error } = await supabase.rpc('make_game_move', {
@@ -801,7 +832,7 @@
           p_piece:          piece.type,
           p_captured_piece: capturedPiece ? capturedPiece.type : null,
           p_is_check:       isCheck,
-          p_is_checkmate:   false  // full detection happens server-side / next render
+          p_is_checkmate:   isCheckmate
         });
         if (error) {
           console.error('[move] RPC error:', error.message);
@@ -809,6 +840,19 @@
           renderPieces(boardState);
           lastFrom = null; lastTo = null;
           updateInfoBar(game.current_turn);
+        } else {
+          // If checkmate or stalemate, end the game in the DB
+          if (isCheckmate) {
+            await supabase
+              .from('games')
+              .update({ status: 'finished', winner: myColor })
+              .eq('id', gameId);
+          } else if (isStalemate) {
+            await supabase
+              .from('games')
+              .update({ status: 'finished', winner: 'draw' })
+              .eq('id', gameId);
+          }
         }
       } catch (e) {
         console.error('[move] exception:', e);
@@ -856,22 +900,26 @@
         updateClocks(wMs, bMs, clockActiveColor);
 
         // ── Timeout detection (one-shot latch) ───────────────────────────
-        if (!timeoutFired) {
+        if (!timeoutFiredRef.current) {
           if (clockActiveColor === 'white' && wMs === 0) {
-            timeoutFired = true;
-            triggerTimeout('white');
+            handleTimeUp('white');
           } else if (clockActiveColor === 'black' && bMs === 0) {
-            timeoutFired = true;
-            triggerTimeout('black');
+            handleTimeUp('black');
           }
         }
       }, 100);
     }
 
     /* ── Write game-over for the colour that ran out of time ────────────── */
-    async function triggerTimeout(lostColor) {
+    async function handleTimeUp(lostColor) {
       if (typeof supabase === 'undefined' || !gameId) return;
-      if (!game || game.status !== 'active') return; // server already resolved
+      // Safety check 1: game must still be active (server may have already resolved it)
+      if (!game || game.status !== 'active') return;
+      // Safety check 2: one-shot latch prevents a double-write race between the
+      // local 100ms tick loop and a near-simultaneous server-side move/resolution.
+      if (timeoutFiredRef.current) return;
+      timeoutFiredRef.current = true;
+
       const winner = lostColor === 'white' ? 'black' : 'white';
       console.log(`[clock] timeout — ${lostColor} ran out of time`);
       await supabase
@@ -965,7 +1013,7 @@
 
       // Reset the one-shot timeout latch whenever the server resolves the game
       // (covers the race where the server writes before our local timeout fires).
-      if (g.status !== 'active') timeoutFired = false;
+      if (g.status !== 'active') timeoutFiredRef.current = false;
 
       renderPieces(g.board_state);
       // Re-apply selection dots so they survive opponent-move re-renders
@@ -1005,6 +1053,19 @@
       let title   = '—';
       let subtitle = '';
       let iconHtml = '';
+      let endingReason = '';
+
+      if (g.winner !== 'draw' && g.winner) {
+        const isCheck = isInCheck(g.board_state, g.current_turn);
+        const isCheckmate = isCheck && !hasLegalMoves(g.board_state, g.current_turn);
+        const isTimeout = (g.white_time_remaining !== null && g.white_time_remaining <= 0) || 
+                          (g.black_time_remaining !== null && g.black_time_remaining <= 0);
+        if (isTimeout) {
+          endingReason = 'timeout';
+        } else if (isCheckmate) {
+          endingReason = 'checkmate';
+        }
+      }
 
       if (g.winner === 'draw') {
         eyebrow  = '½–½ Draw';
@@ -1014,12 +1075,16 @@
       } else if (g.winner === myColor) {
         eyebrow  = '🎉 Victory!';
         title    = 'You Win!';
-        subtitle = `You beat ${oppUsername.textContent}.`;
+        subtitle = endingReason
+          ? `You beat ${oppUsername.textContent} by ${endingReason}.`
+          : `You beat ${oppUsername.textContent} by resignation.`;
         iconHtml = '♔';
       } else if (g.winner) {
         eyebrow  = 'Defeat';
         title    = 'You Lost';
-        subtitle = `${oppUsername.textContent} wins.`;
+        subtitle = endingReason
+          ? `${oppUsername.textContent} won by ${endingReason}.`
+          : `${oppUsername.textContent} won by resignation.`;
         iconHtml = '♚';
       } else {
         // No winner set yet (edge case)
