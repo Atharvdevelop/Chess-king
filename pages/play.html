@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Arena | Chess King</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              950: '#030712',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom styles / animations -->
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 45%);
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+    .board-cell-light {
+      background-color: #f0d9b5;
+    }
+    .board-cell-dark {
+      background-color: #b58863;
+    }
+    /* Premium chess.com / lichess style theme options */
+    .theme-forest-light { background-color: #ececd7; }
+    .theme-forest-dark { background-color: #739552; }
+    
+    .cell-highlight {
+      box-shadow: inset 0 0 0 3px rgba(34, 211, 238, 0.8);
+      background-color: rgba(34, 211, 238, 0.15) !important;
+    }
+    .cell-selected {
+      background-color: rgba(139, 92, 246, 0.3) !important;
+    }
+    .piece-grab {
+      cursor: grab;
+    }
+    .piece-grab:active {
+      cursor: grabbing;
+    }
+  </style>
+
+  <!-- Supabase JS Library CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Global Shared Auth Guard -->
+  <script type="text/javascript">
+    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
+    
+    // Initialize Supabase Client
+    let supabase;
+    try {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch (e) {
+      console.error("Failed to initialize Supabase client in header:", e);
+    }
+
+    // Check session before page renders fully
+    (async function checkAuth() {
+      if (!supabase) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = '/index.html';
+      }
+    })();
+  </script>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen max-h-screen overflow-hidden flex flex-col antialiased select-none">
+
+  <!-- Header Navigation -->
+  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md shrink-0">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/pages/lobby.html" class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors font-semibold">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span class="hidden sm:inline">Lobby</span>
+        </a>
+      </div>
+
+      <!-- Center Title -->
+      <span class="text-sm font-semibold tracking-wide font-mono bg-slate-900 px-3 py-1.5 border border-slate-800 rounded-full" id="game-room-header">
+        Lobby Arena #pending
+      </span>
+
+      <div class="flex items-center gap-3">
+        <button id="resign-btn" class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-4.5 py-1.5 rounded-lg transition-all font-semibold">
+          Resign
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Arena Layout -->
+  <main class="flex-1 flex flex-col lg:flex-row items-center justify-center p-4 lg:p-6 gap-6 min-h-0 overflow-hidden">
+    
+    <!-- Left Column: The Chessboard Workspace -->
+    <div class="flex flex-col items-center justify-center w-full max-w-full lg:w-auto h-auto relative shrink-0">
+      
+      <!-- Opponent Info Badge -->
+      <div class="w-[78vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 border border-slate-700" id="opponent-avatar">O</div>
+          <span class="font-medium text-sm" id="opponent-username">Opponent</span>
+          <span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono" id="opponent-rating">1500 ELO</span>
+        </div>
+        
+        <div class="font-mono px-3 py-1 rounded-lg border bg-slate-900 border-slate-800 text-slate-400 text-sm font-semibold tracking-wide" id="opponent-timer">
+          10:00
+        </div>
+      </div>
+
+      <!-- Chessboard Wrapper: 78vmin maintains responsive squares -->
+      <div class="w-[78vmin] h-[78vmin] max-w-full max-h-full aspect-square bg-slate-900 border-2 border-slate-800 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.55)] overflow-hidden relative">
+        
+        <!-- Board Cells Grid (8x8) -->
+        <div class="grid grid-cols-8 grid-rows-8 w-full h-full" id="chessboard-grid">
+          <!-- Filled dynamically via client scripts. Placehold basic checkerboard pattern for aesthetic presentation -->
+          <!-- Row 8 (Top) -->
+          <div class="theme-forest-light flex items-center justify-center relative"><span class="absolute top-1 left-1 text-[10px] text-slate-600 font-bold opacity-30 select-none">a8</span></div>
+          <div class="theme-forest-dark flex items-center justify-center"></div>
+          <div class="theme-forest-light flex items-center justify-center"></div>
+          <div class="theme-forest-dark flex items-center justify-center"></div>
+          <div class="theme-forest-light flex items-center justify-center"></div>
+          <div class="theme-forest-dark flex items-center justify-center"></div>
+          <div class="theme-forest-light flex items-center justify-center"></div>
+          <div class="theme-forest-dark flex items-center justify-center"></div>
+          <!-- More rows... to complete grid style rendering in CSS/JS -->
+        </div>
+
+        <!-- Waiting for Player Matchmaking Overlay (Hidden by default) -->
+        <div id="game-waiting-overlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-10">
+          <div class="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+          <h3 class="text-xl font-bold text-white mt-6">Awaiting Opponent</h3>
+          <p class="text-slate-400 text-sm mt-2 max-w-sm">Share this URL to invite a player directly or wait for the matching process to sync.</p>
+        </div>
+
+      </div>
+
+      <!-- Current User Info Badge -->
+      <div class="w-[78vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-violet-600/30 flex items-center justify-center text-[10px] font-bold text-violet-300 border border-violet-800/40" id="my-avatar">Y</div>
+          <span class="font-medium text-sm" id="my-username">You</span>
+          <span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono" id="my-rating">1500 ELO</span>
+        </div>
+        
+        <div class="font-mono px-3 py-1 rounded-lg border bg-violet-950/20 border-violet-500/30 text-violet-400 text-sm font-semibold tracking-wide shadow-[0_0_12px_rgba(139,92,246,0.1)]" id="my-timer">
+          10:00
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Move log Ledger / Stats -->
+    <div class="w-full max-w-full lg:w-[350px] xl:w-[380px] h-[320px] lg:h-[78vmin] flex flex-col gap-4 min-h-0">
+      
+      <!-- Moves Ledger -->
+      <div class="flex-1 glass-panel rounded-2xl p-4 flex flex-col overflow-hidden">
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Move History</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase" id="game-status-pill">
+            Active
+          </span>
+        </div>
+
+        <div class="flex-1 overflow-y-auto space-y-1.5 pr-1" id="move-history-list">
+          <!-- Populated by JS -->
+          <div class="text-slate-600 text-xs font-mono text-center pt-12">
+            Waiting for first move...
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat / Game Spec details -->
+      <div class="h-[120px] glass-panel rounded-2xl p-4 flex flex-col justify-center items-center gap-2 group shrink-0 relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-t from-violet-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <p class="text-xs font-mono text-slate-500 uppercase tracking-widest">Spectator Chat</p>
+        <span class="text-[10px] text-violet-400/70 font-mono bg-violet-950/30 px-2.5 py-0.5 rounded border border-violet-900/40">
+          Disabled for Match
+        </span>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Winner Modal overlay (hidden by default) -->
+  <div id="winner-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="glass-panel max-w-sm w-full rounded-3xl p-8 text-center border-slate-800 shadow-2xl relative overflow-hidden">
+      <!-- Decorative crown/icon indicator -->
+      <div class="w-16 h-16 rounded-full bg-violet-600/10 flex items-center justify-center mx-auto mb-4 border border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.1)]">
+        <svg class="w-8 h-8 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+        </svg>
+      </div>
+
+      <h2 class="text-2xl font-black text-white tracking-wide">Game Concluded</h2>
+      <div class="text-base text-cyan-400 font-bold font-mono mt-2 mb-6" id="winner-modal-message">
+        Opponent wins by Resignation
+      </div>
+
+      <button id="modal-rematch-btn" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-violet-600/20 hover:shadow-violet-600/35">
+        Request Rematch
+      </button>
+      <a href="/pages/lobby.html" class="block text-center mt-3 border border-slate-800 hover:border-slate-700 bg-slate-900/50 hover:bg-slate-900 text-slate-400 hover:text-white font-bold py-3 px-6 rounded-xl transition-all text-xs">
+        Return to Lobby
+      </a>
+    </div>
+  </div>
+
+  <!-- Placeholder script for live match logic -->
+  <script type="text/javascript" id="live-match-logic">
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("Play template loaded. Awaiting client implementation.");
+      
+      // Parse Game ID from URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const gameId = urlParams.get('gameId');
+      
+      if (gameId) {
+        document.getElementById("game-room-header").textContent = `Room: #${gameId.substring(0, 8)}`;
+      }
+
+      // Populate basic boilerplate checkerboard pieces representation for look-and-feel
+      const grid = document.getElementById("chessboard-grid");
+      if (grid) {
+        grid.innerHTML = '';
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+        
+        // Piece layout helper representation
+        const initialRowPieces = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
+        
+        for (let r = 8; r >= 1; r--) {
+          for (let f = 0; f < 8; f++) {
+            const isLight = (r + f) % 2 !== 0;
+            const file = files[f];
+            const cellId = `${file}${r}`;
+            
+            const cell = document.createElement("div");
+            cell.className = `w-full h-full flex items-center justify-center relative select-none ${
+              isLight ? 'theme-forest-light text-slate-800' : 'theme-forest-dark text-white'
+            }`;
+            cell.id = `cell-${cellId}`;
+            
+            // Render small coordinate markers on edges
+            if (f === 0) {
+              const label = document.createElement("span");
+              label.className = "absolute top-0.5 left-1 text-[8px] font-bold opacity-30 select-none pointer-events-none";
+              label.textContent = r;
+              cell.appendChild(label);
+            }
+            if (r === 1) {
+              const label = document.createElement("span");
+              label.className = "absolute bottom-0.5 right-1 text-[8px] font-bold opacity-30 select-none pointer-events-none";
+              label.textContent = file;
+              cell.appendChild(label);
+            }
+
+            // Fill visual placeholder chess pieces (Standard chess pieces unicode representation)
+            let pieceSymbol = '';
+            if (r === 8) {
+              pieceSymbol = initialRowPieces[f];
+            } else if (r === 7) {
+              pieceSymbol = 'P';
+            } else if (r === 2) {
+              pieceSymbol = 'p';
+            } else if (r === 1) {
+              pieceSymbol = initialRowPieces[f].toLowerCase();
+            }
+
+            if (pieceSymbol) {
+              const piece = document.createElement("span");
+              piece.className = "text-3xl md:text-4xl font-bold font-serif select-none cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-100 z-10";
+              
+              // Map to standard unicode chess chars
+              const pieceUnicode = {
+                'R': '♜', 'N': '♞', 'B': '♝', 'Q': '♛', 'K': '♚', 'P': '♟',
+                'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔', 'p': '♙'
+              };
+              piece.textContent = pieceUnicode[pieceSymbol] || pieceSymbol;
+              cell.appendChild(piece);
+            }
+            
+            grid.appendChild(cell);
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

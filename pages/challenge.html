@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Challenge | Chess King</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              950: '#030712',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom styles / animations -->
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 45%);
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+    .glass-input {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+    }
+    .glass-input:focus {
+      border-color: rgb(139, 92, 246);
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+    }
+    .time-card-selected {
+      border-color: rgb(139, 92, 246);
+      background: rgba(139, 92, 246, 0.1);
+      box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
+    }
+  </style>
+
+  <!-- Supabase JS Library CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Global Shared Auth Guard -->
+  <script type="text/javascript">
+    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
+    
+    // Initialize Supabase Client
+    let supabase;
+    try {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch (e) {
+      console.error("Failed to initialize Supabase client in header:", e);
+    }
+
+    // Check session before page renders fully
+    (async function checkAuth() {
+      if (!supabase) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = '/index.html';
+      }
+    })();
+  </script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <!-- Header Navigation -->
+  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/pages/lobby.html" class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-violet-600 to-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+            </svg>
+          </div>
+          <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Chess King</span>
+        </a>
+      </div>
+
+      <nav class="hidden md:flex items-center gap-6">
+        <a href="/pages/lobby.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">Lobby</a>
+        <a href="/pages/challenge.html" class="text-violet-400 font-medium text-sm transition-colors px-3 py-2 rounded-md bg-violet-500/10">Create Challenge</a>
+        <a href="/pages/player.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">My Profile</a>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <!-- User Badge -->
+        <div id="user-badge" class="hidden sm:flex items-center gap-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
+          <div class="w-6.5 h-6.5 rounded-full bg-violet-600/30 flex items-center justify-center text-xs font-semibold text-violet-300" id="user-avatar-placeholder">U</div>
+          <span class="text-xs font-medium text-slate-300" id="user-display-name">Username</span>
+          <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-mono" id="user-display-rating">1200 ELO</span>
+        </div>
+
+        <button id="logout-btn" class="text-xs font-medium text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/30 px-3 py-1.5 rounded-lg transition-all duration-200 bg-slate-900/50">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col justify-center">
+    
+    <div class="glass-panel rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
+      
+      <!-- Decorative Backdrop glow -->
+      <div class="absolute top-0 right-0 w-64 h-64 bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute bottom-0 left-0 w-64 h-64 bg-cyan-600/5 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="mb-8">
+        <h1 class="text-2xl md:text-3xl font-extrabold text-white">Create Challenge</h1>
+        <p class="text-slate-400 text-sm mt-1">Configure your match settings and start playing.</p>
+      </div>
+
+      <!-- Mode Selector (Tabs) -->
+      <div class="flex border-b border-slate-800 mb-8" id="challenge-tabs">
+        <button id="tab-open" class="flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all">
+          Open Challenge
+        </button>
+        <button id="tab-direct" class="flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all">
+          Direct Challenge
+        </button>
+      </div>
+
+      <!-- Step 1: Select Time Control (Common to both modes) -->
+      <div class="mb-8">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Time Format</label>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="time-formats-container">
+          <!-- Bullet -->
+          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center time-card-selected" data-format="1+0">
+            <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Bullet</span>
+            <div class="text-xl font-bold text-white mt-1.5">1 min</div>
+            <span class="text-xs text-slate-400 font-medium">+0 increment</span>
+          </div>
+          <!-- Blitz -->
+          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="3+2">
+            <span class="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Blitz</span>
+            <div class="text-xl font-bold text-white mt-1.5">3 + 2</div>
+            <span class="text-xs text-slate-400 font-medium">3 min + 2s</span>
+          </div>
+          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="5+0">
+            <span class="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Blitz</span>
+            <div class="text-xl font-bold text-white mt-1.5">5 min</div>
+            <span class="text-xs text-slate-400 font-medium">+0 increment</span>
+          </div>
+          <!-- Rapid -->
+          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="10+0">
+            <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Rapid</span>
+            <div class="text-xl font-bold text-white mt-1.5">10 min</div>
+            <span class="text-xs text-slate-400 font-medium">+0 increment</span>
+          </div>
+          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="15+10">
+            <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Rapid</span>
+            <div class="text-xl font-bold text-white mt-1.5">15 + 10</div>
+            <span class="text-xs text-slate-400 font-medium">15 min + 10s</span>
+          </div>
+          <div class="glass-panel border-slate-800 p-4 rounded-xl cursor-pointer hover:border-slate-700 transition-all text-center" data-format="custom">
+            <span class="text-[10px] bg-slate-500/10 text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Custom</span>
+            <div class="text-xl font-bold text-white mt-1.5">Custom</div>
+            <span class="text-xs text-slate-400 font-medium">Choose rules</span>
+          </div>
+        </div>
+
+        <!-- Custom inputs (hidden by default) -->
+        <div id="custom-time-inputs" class="hidden mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Minutes per side</label>
+            <input type="number" id="custom-minutes" value="10" min="1" max="180" class="w-full glass-input rounded-xl px-4 py-2.5 text-white outline-none" />
+          </div>
+          <div>
+            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Increment (seconds)</label>
+            <input type="number" id="custom-increment" value="0" min="0" max="60" class="w-full glass-input rounded-xl px-4 py-2.5 text-white outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Option A: Open Challenge UI -->
+      <div id="open-mode-panel" class="space-y-6">
+        <p class="text-xs text-slate-400">Your challenge will be posted to the lobby queue. If another player creates or joins an open challenge with the same time format, you'll be paired instantly!</p>
+        <button id="find-match-btn" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/35 flex items-center justify-center gap-2">
+          <span>Find Match</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Option B: Direct Challenge UI (Hidden by default) -->
+      <div id="direct-mode-panel" class="hidden space-y-6">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Opponent's Username</label>
+          <input type="text" id="target-username" placeholder="Enter exact username..." class="w-full glass-input rounded-xl px-4 py-3 text-white outline-none" />
+          <p class="text-[11px] text-slate-500 mt-1">This will send an invitation notification directly to their session.</p>
+        </div>
+        <button id="send-challenge-btn" class="w-full bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-cyan-600/25 hover:shadow-cyan-600/35 flex items-center justify-center gap-2">
+          <span>Send Challenge Invitation</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Waiting Overlay / Loading State (Hidden by default) -->
+      <div id="waiting-overlay" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-10">
+        <div class="relative w-24 h-24 flex items-center justify-center">
+          <div class="absolute inset-0 rounded-full border-4 border-violet-500/20 border-t-violet-500 animate-spin"></div>
+          <svg class="w-8 h-8 text-violet-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM13 12H17V14H11V7H13V12Z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold text-white mt-6" id="waiting-status-title">Waiting for Partner</h3>
+        <p class="text-slate-400 text-sm mt-2 max-w-sm" id="waiting-status-desc">Looking for another player seeking a 1 min Bullet match...</p>
+        <button id="cancel-challenge-btn" class="mt-8 border border-slate-800 hover:border-slate-700 bg-slate-900/50 hover:bg-slate-900 text-slate-300 font-semibold px-6 py-2.5 rounded-xl transition-all text-sm">
+          Cancel Challenge
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Placeholder script for pairing logic -->
+  <script type="text/javascript" id="pairing-logic-script">
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("Challenge template loaded. Awaiting client implementation.");
+      
+      const logoutBtn = document.getElementById("logout-btn");
+      if (logoutBtn && supabase) {
+        logoutBtn.addEventListener("click", async () => {
+          await supabase.auth.signOut();
+          window.location.href = '/index.html';
+        });
+      }
+
+      // Handle simple tabs toggling
+      const tabOpen = document.getElementById("tab-open");
+      const tabDirect = document.getElementById("tab-direct");
+      const openPanel = document.getElementById("open-mode-panel");
+      const directPanel = document.getElementById("direct-mode-panel");
+
+      if (tabOpen && tabDirect && openPanel && directPanel) {
+        tabOpen.addEventListener("click", () => {
+          tabOpen.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all";
+          tabDirect.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all";
+          openPanel.classList.remove("hidden");
+          directPanel.classList.add("hidden");
+        });
+        
+        tabDirect.addEventListener("click", () => {
+          tabDirect.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-violet-500 text-violet-400 transition-all";
+          tabOpen.className = "flex-1 pb-4 text-center font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all";
+          directPanel.classList.remove("hidden");
+          openPanel.classList.add("hidden");
+        });
+      }
+
+      // Time format card selection
+      const timeCards = document.querySelectorAll("#time-formats-container > div");
+      const customTimeInputs = document.getElementById("custom-time-inputs");
+      
+      timeCards.forEach(card => {
+        card.addEventListener("click", () => {
+          timeCards.forEach(c => c.classList.remove("time-card-selected"));
+          card.classList.add("time-card-selected");
+          
+          if (card.getAttribute("data-format") === "custom") {
+            customTimeInputs.classList.remove("hidden");
+          } else {
+            customTimeInputs.classList.add("hidden");
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

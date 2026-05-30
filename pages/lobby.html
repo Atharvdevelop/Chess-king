@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lobby | Chess King</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              950: '#030712',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom styles / animations -->
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 45%);
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+    .glass-input {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+    }
+    .glass-input:focus {
+      border-color: rgb(139, 92, 246);
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.2);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.4);
+    }
+  </style>
+
+  <!-- Supabase JS Library CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Global Shared Auth Guard -->
+  <script type="text/javascript">
+    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
+    
+    // Initialize Supabase Client
+    let supabase;
+    try {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch (e) {
+      console.error("Failed to initialize Supabase client in header:", e);
+    }
+
+    // Check session before page renders fully
+    (async function checkAuth() {
+      if (!supabase) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Not authenticated, redirect to index.html (login gate)
+        window.location.href = '/index.html';
+      }
+    })();
+  </script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <!-- Header Navigation -->
+  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-violet-600 to-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+          </svg>
+        </div>
+        <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Chess King</span>
+      </div>
+
+      <nav class="hidden md:flex items-center gap-6">
+        <a href="/pages/lobby.html" class="text-violet-400 font-medium text-sm transition-colors px-3 py-2 rounded-md bg-violet-500/10">Lobby</a>
+        <a href="/pages/challenge.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">Create Challenge</a>
+        <a href="/pages/player.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">My Profile</a>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <!-- User Badge -->
+        <div id="user-badge" class="hidden sm:flex items-center gap-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
+          <div class="w-6.5 h-6.5 rounded-full bg-violet-600/30 flex items-center justify-center text-xs font-semibold text-violet-300" id="user-avatar-placeholder">U</div>
+          <span class="text-xs font-medium text-slate-300" id="user-display-name">Username</span>
+          <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-mono" id="user-display-rating">1200 ELO</span>
+        </div>
+
+        <button id="logout-btn" class="text-xs font-medium text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/30 px-3 py-1.5 rounded-lg transition-all duration-200 bg-slate-900/50">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-6 overflow-hidden">
+    
+    <!-- Left Column: Challenges & Active Games -->
+    <div class="flex-1 flex flex-col gap-6 min-w-0">
+      
+      <!-- Quick Match Options / CTAs -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="/pages/challenge.html?mode=open" class="glass-panel hover:border-violet-500/40 p-5 rounded-2xl transition-all duration-300 hover:translate-y-[-2px] group relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <div class="absolute -right-8 -top-8 w-24 h-24 bg-violet-600/10 rounded-full blur-xl group-hover:bg-violet-600/20 transition-all duration-300"></div>
+          <div>
+            <span class="text-violet-400 text-xs font-semibold tracking-wider uppercase">Open Matchmaking</span>
+            <h3 class="text-lg font-bold text-white mt-1">Quick Play</h3>
+            <p class="text-xs text-slate-400 mt-1 max-w-[280px]">Select a time format and pair instantly with any waiting player.</p>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs font-semibold text-violet-400 mt-4">
+            Find Match <span class="group-hover:translate-x-1 transition-transform">→</span>
+          </div>
+        </a>
+
+        <a href="/pages/challenge.html?mode=direct" class="glass-panel hover:border-cyan-500/40 p-5 rounded-2xl transition-all duration-300 hover:translate-y-[-2px] group relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <div class="absolute -right-8 -top-8 w-24 h-24 bg-cyan-600/10 rounded-full blur-xl group-hover:bg-cyan-600/20 transition-all duration-300"></div>
+          <div>
+            <span class="text-cyan-400 text-xs font-semibold tracking-wider uppercase">Direct Invitation</span>
+            <h3 class="text-lg font-bold text-white mt-1">Challenge Friend</h3>
+            <p class="text-xs text-slate-400 mt-1 max-w-[280px]">Invite a specific player directly by typing their unique username.</p>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 mt-4">
+            Create Invitation <span class="group-hover:translate-x-1 transition-transform">→</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Live / Active Challenges -->
+      <section class="glass-panel rounded-2xl p-6 flex flex-col flex-1 min-h-[300px]">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-violet-500 animate-ping"></span>
+            <h2 class="text-base font-bold text-white tracking-wide">Live Challenges</h2>
+          </div>
+          <span class="text-xs text-slate-400" id="challenge-count">0 waiting</span>
+        </div>
+        
+        <!-- Challenge Cards Grid/List -->
+        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-3" id="lobby-challenges-list">
+          <!-- Placeholder / Loading -->
+          <div class="flex flex-col items-center justify-center py-12 text-slate-500">
+            <svg class="w-8 h-8 mb-2 animate-spin text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.213 6H16" />
+            </svg>
+            <p class="text-sm">Loading lobby challenges...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Active Games -->
+      <section class="glass-panel rounded-2xl p-6 min-h-[220px]">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-base font-bold text-white tracking-wide">Ongoing Battles</h2>
+          <span class="text-xs text-slate-400" id="live-games-count">0 games</span>
+        </div>
+        
+        <div class="overflow-y-auto pr-1 flex flex-col gap-3 max-h-[240px]" id="lobby-games-list">
+          <p class="text-sm text-slate-500 text-center py-8">No active chess matches on the server right now.</p>
+        </div>
+      </section>
+      
+    </div>
+
+    <!-- Right Column: Sidebar Chat & Active Players -->
+    <div class="w-full lg:w-80 flex flex-col gap-6 shrink-0">
+      
+      <!-- Online Players -->
+      <section class="glass-panel rounded-2xl p-5 flex flex-col h-[280px]">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-white tracking-wider uppercase">Online Players</h3>
+          <span class="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-semibold" id="online-users-count">0</span>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-2" id="online-players-list">
+          <!-- List generated dynamically -->
+        </div>
+      </section>
+
+      <!-- Lobby Global Chat -->
+      <section class="glass-panel rounded-2xl p-5 flex flex-col h-[400px]">
+        <div class="border-b border-slate-800 pb-3 mb-3">
+          <h3 class="text-sm font-bold text-white tracking-wider uppercase">Global Chat</h3>
+        </div>
+
+        <!-- Chat messages container -->
+        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 text-sm" id="chat-messages-container">
+          <div class="text-slate-500 text-center py-12 text-xs">
+            Welcome to Global Chat! Connect with players and find challenges.
+          </div>
+        </div>
+
+        <!-- Send block -->
+        <form id="chat-form" class="mt-3 flex gap-2">
+          <input type="text" id="chat-input" placeholder="Type a message..." class="flex-1 glass-input rounded-xl px-3 py-2 text-sm text-slate-200 outline-none" autocomplete="off" />
+          <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white rounded-xl px-4 py-2 transition-all text-sm font-medium shadow-lg hover:shadow-violet-600/20">
+            Send
+          </button>
+        </form>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="border-t border-slate-900 py-6 bg-slate-950/60 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+      Chess King © 2026. Made with passion for chess enthusiasts.
+    </div>
+  </footer>
+
+  <!-- Placeholder script for lobby logic -->
+  <script type="text/javascript" id="lobby-logic-script">
+    // Logic placeholder. Safe auth and setup.
+    document.addEventListener("DOMContentLoaded", async () => {
+      console.log("Lobby template loaded. Awaiting client implementation.");
+      
+      const logoutBtn = document.getElementById("logout-btn");
+      if (logoutBtn && supabase) {
+        logoutBtn.addEventListener("click", async () => {
+          await supabase.auth.signOut();
+          window.location.href = '/index.html';
+        });
+      }
+    });
+  </script>
+</body>
+</html>
