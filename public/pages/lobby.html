@@ -4,71 +4,144 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lobby | Chess King</title>
-  <meta name="description" content="Lobby - Chess King">
-
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Outfit', 'sans-serif'] },
-          colors: {
-            slate: {
-              950: '#030712'
-            }
-          }
-        }
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <style>
+    body { background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent 40%); }
+    .glass-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); border: 1px solid rgba(51, 65, 85, 0.4); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <span class="text-xl font-black bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">Chess King</span>
+    </div>
+    <nav class="flex gap-6 text-sm font-medium text-slate-400">
+      <a href="/pages/lobby.html" class="text-violet-400">Lobby</a>
+      <a href="/pages/challenge.html" class="hover:text-slate-200 transition-colors">Challenges</a>
+      <a href="/pages/player.html" class="hover:text-slate-200 transition-colors">Profile</a>
+    </nav>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+    
+    <div class="lg:col-span-1 glass-card rounded-2xl p-4 flex flex-col h-[calc(100vh-140px)]">
+      <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Online Players
+      </h2>
+      <div id="players-list" class="flex-1 overflow-y-auto space-y-2 pr-1">
+        <p class="text-xs text-slate-500 italic">Scanning lobby...</p>
+      </div>
+    </div>
+
+    <div class="lg:col-span-2 space-y-6 flex flex-col h-[calc(100vh-140px)]">
+      <div class="glass-card rounded-2xl p-6 flex-1 flex flex-col">
+        <h2 class="text-lg font-bold text-white mb-4">Live Match Arena</h2>
+        <div id="games-list" class="flex-1 overflow-y-auto space-y-3">
+          <p class="text-sm text-slate-500 italic">No live matches running at the moment.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="lg:col-span-1 glass-card rounded-2xl p-4 flex flex-col h-[calc(100vh-140px)]">
+      <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">Global Chat</h2>
+      <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 pr-1 text-xs mb-3">
+        </div>
+      <form id="chat-form" class="flex gap-2">
+        <input type="text" id="chat-input" placeholder="Say hello..." class="flex-1 bg-slate-900/50 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-violet-500 transition-colors" required />
+        <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">Send</button>
+      </form>
+    </div>
+
+  </main>
+
+  <script type="text/javascript">
+    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
+    
+    let supabase;
+    let currentUser = null;
+
+    window.addEventListener('load', async () => {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      
+      // Auth Guard Latch check
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = '/index.html';
+        return;
       }
+      currentUser = session.user;
+
+      // Mount Heartbeat presence and start socket channels
+      initializeLobbyEngine();
+    });
+
+    async function initializeLobbyEngine() {
+      fetchOnlinePlayers();
+      
+      // Open Realtime subscription channel stream on the players data grid
+      supabase
+        .channel('public:players')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
+          fetchOnlinePlayers();
+        })
+        .subscribe();
+
+      // Heartbeat update routine: Mark current player status as active online
+      // Fetches user metadata if username exists, falls back to email string parsing
+      let usernameString = currentUser.user_metadata?.username;
+      if (!usernameString) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        usernameString = profileData?.username || currentUser.email.split('@')[0];
+      }
+
+      await supabase.from('players').upsert({
+        id: currentUser.id,
+        username: usernameString,
+        status: 'online',
+        last_seen: new Date().toISOString()
+      }, { onConflict: 'id' });
+    }
+
+    async function fetchOnlinePlayers() {
+      const { data, error } = await supabase
+        .from('lobby_players')
+        .select('*');
+
+      if (error) return;
+      const container = document.getElementById('players-list');
+      container.innerHTML = '';
+
+      if (data.length <= 1) {
+        container.innerHTML = '<p class="text-[11px] text-slate-500 italic">No other players online yet...</p>';
+        return;
+      }
+
+      data.forEach(player => {
+        if (player.id === currentUser.id) return; // Skip rendering self
+        
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center p-2 rounded-xl bg-slate-900/40 border border-slate-800/40";
+        row.innerHTML = `
+          <span class="text-xs font-medium text-slate-300">@${player.username}</span>
+          <button onclick="issueDirectChallenge('${player.id}')" class="bg-violet-600/20 hover:bg-violet-600 text-violet-400 hover:text-white text-[10px] font-bold px-2 py-1 rounded-lg transition-all border border-violet-500/20">Challenge</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function issueDirectChallenge(targetId) {
+      window.location.href = `/pages/challenge.html?targetPlayer=${targetId}`;
     }
   </script>
-
-  <!-- Global Styles -->
-  <style>
-    body {
-      font-family: 'Outfit', sans-serif;
-      background-image:
-        radial-gradient(circle at top right, rgba(99,102,241,0.07), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(6,182,212,0.05), transparent 45%);
-    }
-
-    .glass-panel {
-      background: rgba(15,23,42,0.65);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid rgba(51,65,85,0.5);
-    }
-  </style>
-
-  <!-- Supabase JS Library CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col justify-between p-6">
-  <div class="max-w-4xl mx-auto w-full">
-    <!-- Navbar / Header -->
-    <header class="flex items-center justify-between py-4 border-b border-slate-900 mb-8">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center font-bold">♔</div>
-        <span class="font-extrabold text-lg tracking-tight">Chess King</span>
-      </div>
-      <nav class="flex items-center gap-4 text-sm font-semibold text-slate-400">
-        <a href="lobby.html" class="text-white">Lobby</a>
-        <a href="challenge.html" class="hover:text-white transition-colors">Challenges</a>
-        <a href="player.html" class="hover:text-white transition-colors">Profile</a>
-      </nav>
-    </header>
-
-    <!-- Main Content Panel -->
-    <main class="glass-panel rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-      <h1 class="text-2xl font-bold mb-4">Game Lobby</h1>
-      <p class="text-slate-400 text-sm">Welcome to the lobby. Join an existing match or start a new challenge.</p>
-    </main>
-  </div>
 </body>
 </html>
