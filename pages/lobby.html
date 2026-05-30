@@ -50,7 +50,7 @@
     <div class="lg:col-span-1 glass-card rounded-2xl p-4 flex flex-col h-[calc(100vh-140px)]">
       <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">Global Chat</h2>
       <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 pr-1 text-xs mb-3">
-        </div>
+      </div>
       <form id="chat-form" class="flex gap-2">
         <input type="text" id="chat-input" placeholder="Say hello..." class="flex-1 bg-slate-900/50 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-violet-500 transition-colors" required />
         <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">Send</button>
@@ -69,7 +69,6 @@
     window.addEventListener('load', async () => {
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       
-      // Auth Guard Latch check
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         window.location.href = '/index.html';
@@ -77,23 +76,11 @@
       }
       currentUser = session.user;
 
-      // Mount Heartbeat presence and start socket channels
       initializeLobbyEngine();
     });
 
     async function initializeLobbyEngine() {
-      fetchOnlinePlayers();
-      
-      // Open Realtime subscription channel stream on the players data grid
-      supabase
-        .channel('public:players')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
-          fetchOnlinePlayers();
-        })
-        .subscribe();
-
-      // Heartbeat update routine: Mark current player status as active online
-      // Fetches user metadata if username exists, falls back to email string parsing
+      // FIX 1: Resolve the username metadata string BEFORE running any lists
       let usernameString = currentUser.user_metadata?.username;
       if (!usernameString) {
         const { data: profileData } = await supabase
@@ -104,31 +91,50 @@
         usernameString = profileData?.username || currentUser.email.split('@')[0];
       }
 
+      // FIX 2: Execute the upsert statement FIRST so the user is officially online
       await supabase.from('players').upsert({
         id: currentUser.id,
         username: usernameString,
         status: 'online',
         last_seen: new Date().toISOString()
       }, { onConflict: 'id' });
+
+      // FIX 3: Fetch players only AFTER your user state has been written to the table
+      fetchOnlinePlayers();
+      
+      // FIX 4: Bind the change listener directly to update our list on any mutation event
+      supabase
+        .channel('public:players')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
+          console.log("Realtime player change detected:", payload);
+          fetchOnlinePlayers();
+        })
+        .subscribe();
     }
 
     async function fetchOnlinePlayers() {
+      // FIX 5: Targeted 'players' instead of a view structure to match the socket loop channel topic
       const { data, error } = await supabase
-        .from('lobby_players')
+        .from('players')
         .select('*');
 
-      if (error) return;
+      if (error) {
+        console.error("Error fetching online players:", error);
+        return;
+      }
+      
       const container = document.getElementById('players-list');
       container.innerHTML = '';
 
-      if (data.length <= 1) {
+      // Count players that are NOT the current user
+      const otherPlayers = data.filter(player => player.id !== currentUser.id);
+
+      if (otherPlayers.length === 0) {
         container.innerHTML = '<p class="text-[11px] text-slate-500 italic">No other players online yet...</p>';
         return;
       }
 
-      data.forEach(player => {
-        if (player.id === currentUser.id) return; // Skip rendering self
-        
+      otherPlayers.forEach(player => {
         const row = document.createElement('div');
         row.className = "flex justify-between items-center p-2 rounded-xl bg-slate-900/40 border border-slate-800/40";
         row.innerHTML = `
