@@ -935,6 +935,7 @@
       cancelChallengeBtn.addEventListener('click', cancelOpenMatch);
 
       // ── Main handler ─────────────────────────────────────────────
+      // ── OPEN CHALLENGE — FIND MATCH FLOW ─────────────────────────────
       findMatchBtn.addEventListener('click', async () => {
         if (typeof supabase === 'undefined') {
           alert('Connection error — please refresh and try again.');
@@ -955,7 +956,7 @@
         findMatchBtn.querySelector('span').textContent = 'Searching…';
 
         try {
-          // 1. Resolve current user ─────────────────────────────────
+          // 1. Resolve current user
           const { data: { session }, error: sessErr } = await supabase.auth.getSession();
           if (sessErr || !session) throw new Error('You are not logged in.');
           const myId = session.user.id;
@@ -967,97 +968,69 @@
             .single();
           const myUsername = myProfile?.username || session.user.email.split('@')[0];
 
-          // 2. Query the queue for a waiting opponent ───────────────
-          //    Conditions: same format, not yet matched (game_id IS NULL), not self.
+          // 2. Query the queue for a waiting opponent using corrected column names
           const { data: candidates, error: qErr } = await supabase
             .from('matchmaking_queue')
-            .select('id, user_id, username')
+            .select('id, player_id')
             .eq('time_format', timeFormat)
-            .is('game_id', null)
-            .neq('user_id', myId)
+            .neq('player_id', myId)
             .order('created_at', { ascending: true })
             .limit(1);
 
           if (qErr) throw new Error(`Queue query failed: ${qErr.message}`);
 
-          if (candidates && candidates.length > 0) {
-            // ── MATCH FOUND — call the RPC ──────────────────────────
-            findMatchBtn.querySelector('span').textContent = 'Match Found! Starting…';
+          // 3. Execute pairing sequence via the correct database RPC signature
+          showOpenWaiting(timeFormat);
 
-            const opponent = candidates[0];
+          const { data: rpcData, error: rpcErr } = await supabase
+            .rpc('join_matchmaking_pool', {
+              p_player_id: myId,
+              p_time_format: timeFormat
+            });
 
-            const { data: gameId, error: rpcErr } = await supabase
-              .rpc('initialize_open_match', {
-                p_queue_row_id:    opponent.id,
-                p_joiner_id:       myId,
-                p_joiner_username: myUsername,
-                p_time_format:     timeFormat
-              });
+          if (rpcErr) throw new Error(`Failed to execute pool pairing: ${rpcErr.message}`);
 
-            if (rpcErr) {
-              // Row was claimed by a third player in the same instant —
-              // fall through to the "join queue" path instead.
-              if (rpcErr.message && rpcErr.message.includes('match_already_claimed')) {
-                console.warn('[open-challenge] race: row already claimed, joining queue instead');
-                throw new Error('That spot was just taken — you\'ve been added to the queue. Hang tight!');
-              }
-              throw new Error(`Failed to start game: ${rpcErr.message}`);
-            }
-
-            // Navigate the joiner directly to the new game
-            window.location.href = `/pages/play.html?gameId=${gameId}`;
-
+          if (rpcData && rpcData.match_status === 'paired') {
+            // Match found instantly! Route straight to the board
+            teardownOpenChannel();
+            clearInterval(openElapsedTimer);
+            window.location.href = `/pages/play.html?gameId=${rpcData.game_id}`;
           } else {
-            // ── NO MATCH — INSERT SELF INTO QUEUE ──────────────────
-            //    upsert handles the edge case where we still have a stale row.
-            const { data: queueRow, error: insErr } = await supabase
-              .from('matchmaking_queue')
-              .upsert(
-                { user_id: myId, username: myUsername, time_format: timeFormat, game_id: null },
-                { onConflict: 'user_id', ignoreDuplicates: false }
-              )
-              .select('id')
-              .single();
-
-            if (insErr) throw new Error(`Failed to join queue: ${insErr.message}`);
-            openQueueId = queueRow.id;
-
-            showOpenWaiting(timeFormat);
-
-            // 3. Realtime: watch for our queue row being UPDATE'd with a game_id.
-            //    This fires the instant the joiner's RPC stamps our row.
+            // No instant match. Listen for a secondary player claiming our queue row
             openQueueChannel = supabase
-              .channel(`open-queue-${openQueueId}`)
+              .channel(`open-queue-${myId}`)
               .on(
                 'postgres_changes',
                 {
-                  event:  'UPDATE',
+                  event:  'DELETE',
                   schema: 'public',
                   table:  'matchmaking_queue',
-                  filter: `id=eq.${openQueueId}`
+                  filter: `player_id=eq.${myId}`
                 },
-                (payload) => {
-                  const row = payload.new;
-                  if (row && row.game_id) {
-                    // We've been matched — navigate to the game
+                async () => {
+                  // Row deleted means we've been paired! Fetch the new active game ID
+                  const { data: gameRow } = await supabase
+                    .from('games')
+                    .select('id')
+                    .or(`white_player_id.eq.${myId},black_player_id.eq.${myId}`)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (gameRow) {
                     teardownOpenChannel();
                     clearInterval(openElapsedTimer);
-                    window.location.href = `/pages/play.html?gameId=${row.game_id}`;
+                    window.location.href = `/pages/play.html?gameId=${gameRow.id}`;
                   }
                 }
               )
-              .subscribe((status) => {
-                console.log(`[open-queue] realtime: ${status}`);
-              });
+              .subscribe();
           }
 
         } catch (err) {
           console.error('[open-challenge] error:', err);
-          // Show error inside the overlay title if it's visible, else reset
           waitingStatusTitle.textContent = 'Error';
           waitingStatusDesc.textContent  = err.message;
-          // If we ended up in the overlay, leave it visible so user can cancel;
-          // otherwise just re-enable the button.
           if (waitingOverlay.classList.contains('hidden')) {
             findMatchBtn.disabled = false;
             findMatchBtn.querySelector('span').textContent = 'Find Match';

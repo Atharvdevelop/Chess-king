@@ -923,12 +923,12 @@
       async function cancelOpenMatch() {
         teardownOpenChannel();
         hideOpenWaiting();
-        if (openQueueId && typeof supabase !== 'undefined') {
+        if (typeof supabase !== 'undefined') {
+          // Cleans up your entry row using the primary identifier key constraint
           await supabase
             .from('matchmaking_queue')
             .delete()
-            .eq('id', openQueueId);
-          openQueueId = null;
+            .eq('player_id', currentUserId);
         }
       }
 
