@@ -56,9 +56,10 @@
     const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
     
-    let supabase;
+    // Using a totally unique global variable name to completely prevent browser variable clashing
+    window.chessSupabase = null;
     try {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      window.chessSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     } catch (e) {
       console.error("Failed to initialize Supabase client:", e);
     }
@@ -67,8 +68,8 @@
     document.documentElement.classList.add('opacity-0');
 
     (async function checkSession() {
-      if (supabase) {
-        const { data: { session } } = await supabase.auth.getSession();
+      if (window.chessSupabase) {
+        const { data: { session } } = await window.chessSupabase.auth.getSession();
         if (session) {
           window.location.href = '/pages/lobby.html';
           return;
@@ -252,8 +253,8 @@
 
           // Check if identifier is email or username
           if (!identifier.includes("@")) {
-            // Identifier is username, run query against public.profiles to resolve email
-            const { data, error } = await supabase
+            // Refactored to look up against our specific isolated window scope client reference
+            const { data, error } = await window.chessSupabase
               .from("profiles")
               .select("email")
               .eq("username", identifier)
@@ -265,8 +266,8 @@
             emailAddress = data.email;
           }
 
-          // Hand credentials payload to signInWithPassword
-          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          // Hand credentials payload to signInWithPassword via absolute client context
+          const { data: authData, error: authError } = await window.chessSupabase.auth.signInWithPassword({
             email: emailAddress,
             password: password
           });
@@ -309,8 +310,7 @@
         submitBtn.querySelector("span").textContent = "Creating Account...";
 
         try {
-          // FIXED: Destructured data as 'authData' to completely prevent scope collision with global 'supabase'
-          const { data: authData, error: signUpError } = await supabase.auth.signUp({
+          const { data: authData, error: signUpError } = await window.chessSupabase.auth.signUp({
             email: email,
             password: password,
             options: {
@@ -322,7 +322,7 @@
           if (!authData.user) throw new Error("Registration failed.");
 
           // 2. Profiles Table Sync Insertion
-          const { error: profileError } = await supabase.from("profiles").upsert({
+          const { error: profileError } = await window.chessSupabase.from("profiles").upsert({
             id: authData.user.id,
             username: username,
             full_name: fullname,
@@ -333,7 +333,7 @@
           if (profileError) throw profileError;
 
           // 3. Players Table Sync Insertion (Explicitly forwarding auth ID to avoid constraint blocks)
-          const { error: playerError } = await supabase.from("players").upsert({
+          const { error: playerError } = await window.chessSupabase.from("players").upsert({
             id: authData.user.id,
             username: username,
             status: "online",
