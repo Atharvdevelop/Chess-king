@@ -183,27 +183,212 @@
     </div>
   </footer>
 
-  <!-- Placeholder script for profile card logic -->
+  <!-- Profile logic script -->
   <script type="text/javascript" id="profile-logic-script">
-    document.addEventListener("DOMContentLoaded", () => {
-      console.log("Player profile template loaded. Awaiting client implementation.");
-      
+    let supabase;
+
+    window.addEventListener('load', async () => {
+      console.log("Profile page loaded, initializing...");
+
+      // 1. Initialize client explicitly from global shared window scope
+      if (window.supabase) {
+        supabase = window.supabase;
+      } else {
+        console.error("Supabase client is not initialized.");
+        return;
+      }
+
+      // 2. Safe Sign Out Event Binding
       const logoutBtn = document.getElementById("logout-btn");
-      if (logoutBtn && supabase) {
-        logoutBtn.addEventListener("click", async () => {
-          await supabase.auth.signOut();
-          window.location.href = '/index.html';
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          try {
+            if (supabase && supabase.auth) {
+              await supabase.auth.signOut();
+            }
+          } catch (err) {
+            console.error("Supabase signout failed:", err);
+          } finally {
+            // Force clear session state completely
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Clear cookies manually
+            document.cookie.split(";").forEach((c) => {
+              document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+            });
+
+            // Redirect back to landing gate
+            window.location.replace('/index.html');
+          }
         });
       }
 
-      // Parse target user from URL query params
-      const urlParams = new URLSearchParams(window.location.search);
-      const usernameParam = urlParams.get('u');
-      
-      if (usernameParam) {
-        document.getElementById("profile-username").textContent = usernameParam;
-        document.getElementById("profile-avatar").textContent = usernameParam.charAt(0).toUpperCase();
+      // 3. Resolve current user and update header UI
+      let currentUser = null;
+      let currentUsername = null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || !session.user) {
+          window.location.replace('/index.html');
+          return;
+        }
+        currentUser = session.user;
+
+        // Fetch current user profile to get the correct username
+        const { data: myProfile, error: myProfileErr } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', currentUser.id)
+          .single();
+
+        if (myProfile) {
+          currentUsername = myProfile.username;
+        } else {
+          currentUsername = currentUser.email.split('@')[0];
+        }
+
+        // Update header user badge
+        const userDisplayName = document.getElementById("user-display-name");
+        const userAvatar = document.getElementById("user-avatar-placeholder");
+        const userBadge = document.getElementById("user-badge");
+
+        if (userDisplayName) userDisplayName.textContent = currentUsername;
+        if (userAvatar) userAvatar.textContent = currentUsername.charAt(0).toUpperCase();
+        if (userBadge) userBadge.classList.remove("hidden");
+
+      } catch (err) {
+        console.error("Error resolving session:", err);
+        window.location.replace('/index.html');
+        return;
       }
+
+      // 4. Resolve the user profile to display on the card
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetUsername = urlParams.get('u');
+
+      let displayProfile = null;
+
+      try {
+        if (targetUsername) {
+          // Fetch the specified target user's profile
+          const { data: profile, error: profileErr } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('username', targetUsername)
+            .single();
+
+          if (profileErr || !profile) {
+            console.error("Profile not found:", targetUsername);
+            alert(`Player "${targetUsername}" not found.`);
+            // Fall back to current user
+            window.location.href = '/pages/player.html';
+            return;
+          }
+          displayProfile = profile;
+        } else {
+          // Default to the current logged-in user
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single();
+          displayProfile = profile;
+        }
+
+        // Update Card UI with displayProfile details
+        if (displayProfile) {
+          document.getElementById("profile-username").textContent = displayProfile.username;
+          document.getElementById("profile-avatar").textContent = displayProfile.username.charAt(0).toUpperCase();
+          
+          // Set joined date format
+          if (displayProfile.created_at) {
+            const joinedDate = new Date(displayProfile.created_at);
+            const options = { year: 'numeric', month: 'long' };
+            const formattedDate = joinedDate.toLocaleDateString('en-US', options);
+            const joinedText = `Joined ${formattedDate}`;
+            const joinedEl = document.querySelector("#profile-avatar").parentElement.querySelector(".text-slate-500");
+            if (joinedEl) joinedEl.textContent = joinedText;
+          }
+
+          // Fetch games and compute statistics
+          const { data: games, error: gamesErr } = await supabase
+            .from('games')
+            .select('*')
+            .or(`white_player_id.eq.${displayProfile.id},black_player_id.eq.${displayProfile.id}`);
+
+          if (!gamesErr && games) {
+            // Played games are only finished ones
+            const finishedGames = games.filter(g => g.status === 'finished');
+            
+            // Count wins
+            let winsCount = 0;
+            finishedGames.forEach(g => {
+              const isWhite = g.white_player_id === displayProfile.id;
+              if ((isWhite && g.winner === 'white') || (!isWhite && g.winner === 'black')) {
+                winsCount++;
+              }
+            });
+
+            // ELO rating - mock or default to 1500 (since not in DB)
+            document.getElementById("stat-elo").textContent = "1500";
+            document.getElementById("stat-wins").textContent = winsCount;
+            document.getElementById("stat-games").textContent = finishedGames.length;
+
+            // Render Recent Games list
+            const matchHistoryContainer = document.getElementById("profile-match-history");
+            matchHistoryContainer.innerHTML = '';
+
+            if (finishedGames.length === 0) {
+              matchHistoryContainer.innerHTML = `
+                <div class="text-slate-500 text-sm text-center py-20">
+                  No match history logged for this player yet.
+                </div>
+              `;
+            } else {
+              // Order by finished games (latest first)
+              const sortedGames = finishedGames.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)).slice(0, 5);
+              
+              sortedGames.forEach(game => {
+                const isWhite = game.white_player_id === displayProfile.id;
+                const opponentUsername = isWhite ? (game.black_player_username || 'Unknown') : (game.white_player_username || 'Unknown');
+                const playerUsername = displayProfile.username;
+                
+                let resultText = "Draw";
+                let resultClass = "text-slate-400";
+                
+                if (game.winner === 'white') {
+                  resultText = isWhite ? "Won" : "Lost";
+                  resultClass = isWhite ? "text-emerald-400" : "text-rose-400";
+                } else if (game.winner === 'black') {
+                  resultText = !isWhite ? "Won" : "Lost";
+                  resultClass = !isWhite ? "text-emerald-400" : "text-rose-400";
+                }
+
+                const FORMAT_LABELS = { '1+0': 'Bullet ⚡', '3+2': 'Blitz 🔥', '10+0': 'Rapid 🌿' };
+                const formatLabel  = FORMAT_LABELS[game.time_format] || game.time_format || 'Standard';
+
+                const item = document.createElement("div");
+                item.className = "flex justify-between items-center p-4 bg-slate-900/40 border border-slate-800 rounded-xl text-sm";
+                item.innerHTML = `
+                  <div class="flex items-center gap-3">
+                    <span class="font-bold ${isWhite ? 'text-white' : 'text-slate-300'}">${game.white_player_username || 'Unknown'}</span>
+                    <span class="text-slate-500 text-xs">vs</span>
+                    <span class="font-bold ${!isWhite ? 'text-white' : 'text-slate-300'}">${game.black_player_username || 'Unknown'}</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-slate-500 font-mono">${formatLabel}</span>
+                    <span class="text-xs font-extrabold ${resultClass}">${resultText}</span>
+                  </div>
+                `;
+                matchHistoryContainer.appendChild(item);
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading profile details:", err);
     });
   </script>
 </body>
