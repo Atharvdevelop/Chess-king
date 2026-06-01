@@ -706,17 +706,17 @@
       }
 
       // All other pieces: iterate every target square
-      'abcdefgh'.split('').forEach(f => {
+      for (const f of 'abcdefgh') {
         for (let r = 1; r <= 8; r++) {
           const toAlg = f + r;
-          if (toAlg === fromAlg) return;
+          if (toAlg === fromAlg) continue;
           const target = boardState[toAlg];
-          if (target && target.color === piece.color) return;
-          if (!rawCanAttack(boardState, fromAlg, toAlg, piece)) return;
+          if (target && target.color === piece.color) continue;
+          if (!rawCanAttack(boardState, fromAlg, toAlg, piece)) continue;
           const after = simulateMove(boardState, fromAlg, toAlg);
           if (!isInCheck(after, piece.color)) moves.push(toAlg);
         }
-      });
+      }
       return moves;
     }
 
