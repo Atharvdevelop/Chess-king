@@ -813,7 +813,6 @@
           const { data: newGame, error: gameErr } = await supabase
             .from('games')
             .insert({
-              initiator_id:          currentUserId,
               white_player_id:       currentUserId,
               black_player_id:       opponentId,
               white_player_username: currentUsername || session.user.email.split('@')[0],
