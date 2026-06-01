@@ -382,7 +382,7 @@
           // (challenger already wrote the game row with status='pending')
           const { data: pendingGames, error: pendingErr } = await supabase
             .from('games')
-            .select('id, white_player_id, white_player_username, black_player_username, time_format, status, created_at')
+            .select('id, white_player_id, white_player_username, black_player_username, time_limit, status, created_at')
             .eq('black_player_id', currentUserId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false });
@@ -399,8 +399,7 @@
               `;
             } else {
               pendingGames.forEach(game => {
-                const FORMAT_LABELS = { '1+0': 'Bullet ⚡', '3+2': 'Blitz 🔥', '10+0': 'Rapid 🌿' };
-                const formatLabel  = FORMAT_LABELS[game.time_format] || game.time_format || 'Standard';
+                const formatLabel = game.time_limit === 60 ? 'Bullet ⚡' : game.time_limit === 180 ? 'Blitz 🔥' : game.time_limit === 600 ? 'Rapid 🌿' : `${Math.floor((game.time_limit || 600) / 60)} min`;
                 const challenger   = game.white_player_username || 'Unknown';
 
                 const card = document.createElement('div');
