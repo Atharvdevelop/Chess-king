@@ -520,34 +520,27 @@
   </div>
 
   <!-- Challenge page logic -->
-  <script type="text/javascript" id="pairing-logic-script">
-    document.addEventListener("DOMContentLoaded", () => {
+  <script type="module" id="pairing-logic-script">
+    import { supabase } from '/src/lib/supabase.ts';
+
+    async function init() {
       console.log("Challenge page loaded.");
 
-      // ── Logout (Fixed Initialization Mismatch) ───────────────────
-      const logoutBtn = document.getElementById("logout-btn");
-      if (logoutBtn) {
-        logoutBtn.addEventListener("click", async () => {
-          try {
-            // Guarantee the client instance exists before executing the sign out
-            if (typeof supabase === 'undefined' && window.supabase) {
-              window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            }
-            
-            // Call signout directly from the window's global library context
-            const client = typeof supabase !== 'undefined' ? supabase : window.supabase?.auth ? window.supabase : null;
-            if (client) {
-              await client.auth.signOut();
-            }
-          } catch (err) {
-            console.error("Sign out handling error:", err);
-          } finally {
-            // Always clear local storage fallback layers and redirect to login gate
-            localStorage.clear();
-            window.location.href = '/index.html';
-          }
-        });
-      }
+    // ── Logout ───────────────────
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", async () => {
+        try {
+          await supabase.auth.signOut();
+        } catch (err) {
+          console.error("Sign out handling error:", err);
+        } finally {
+          // Always clear local storage fallback layers and redirect to login gate
+          localStorage.clear();
+          window.location.href = '/index.html';
+        }
+      });
+    }
 
       // ── Tab switching ──────────────────────────────────────
       const tabOpen   = document.getElementById("tab-open");
@@ -1088,7 +1081,8 @@
         clearInterval(elapsedTimer);
         clearInterval(openElapsedTimer);
       });
-    });
+    }
+    init();
   </script>
 </body>
 </html>

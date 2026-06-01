@@ -4,6 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Player Profile | Chess King</title>
+
+  <!-- Visual Debug Error Logger -->
+  <script type="text/javascript">
+    window.addEventListener('error', (event) => {
+      showVisualError(event.error ? event.error.stack || event.error.message : event.message);
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      showVisualError(event.reason ? event.reason.stack || event.reason.message : event.reason);
+    });
+
+    function showVisualError(err) {
+      // Ensure body exists
+      if (!document.body) {
+        window.addEventListener('DOMContentLoaded', () => showVisualError(err));
+        return;
+      }
+      let div = document.getElementById('debug-error-banner');
+      if (!div) {
+        div = document.createElement('div');
+        div.id = 'debug-error-banner';
+        div.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#f43f5e;color:#fff;padding:16px;z-index:99999;font-family:monospace;white-space:pre-wrap;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-height:50vh;overflow-y:auto;';
+        document.body.appendChild(div);
+      }
+      div.textContent = '--- CLIENT RUNTIME ERROR ---\n' + err + '\n\n' + div.textContent;
+    }
+  </script>
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -184,23 +210,15 @@
   </footer>
 
   <!-- Profile logic script -->
-  <script type="text/javascript" id="profile-logic-script">
-    let supabase;
+  <script type="module" id="profile-logic-script">
+    import { supabase } from '/src/lib/supabase.ts';
 
-    window.addEventListener('load', async () => {
+    async function init() {
       console.log("Profile page loaded, initializing...");
 
-      // 1. Initialize client explicitly from global shared window scope
-      if (window.supabase) {
-        supabase = window.supabase;
-      } else {
-        console.error("Supabase client is not initialized.");
-        return;
-      }
-
-      // 2. Safe Sign Out Event Binding
-      const logoutBtn = document.getElementById("logout-btn");
-      if (logoutBtn) {
+    // 2. Safe Sign Out Event Binding
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) {
         logoutBtn.addEventListener("click", async (e) => {
           e.preventDefault();
           try {
@@ -390,7 +408,8 @@
       } catch (err) {
         console.error("Error loading profile details:", err);
       }
-    });
+    }
+    init();
   </script>
 </body>
 </html>

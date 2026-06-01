@@ -221,38 +221,36 @@
   </footer>
 
   <!-- Real-time Lobby Logic -->
-  <script type="text/javascript" id="lobby-logic-script">
-    document.addEventListener("DOMContentLoaded", async () => {
+  <script type="module" id="lobby-logic-script">
+    import { supabase } from '/src/lib/supabase.ts';
+
+    async function init() {
       console.log("Lobby client logic initializing...");
 
-      // Elements
-      const logoutBtn = document.getElementById("logout-btn");
-      const userBadge = document.getElementById("user-badge");
-      const userAvatar = document.getElementById("user-avatar-placeholder");
-      const userDisplayName = document.getElementById("user-display-name");
-      const userDisplayRating = document.getElementById("user-display-rating");
-      
-      const challengeCount = document.getElementById("challenge-count");
-      const challengesList = document.getElementById("lobby-challenges-list");
-      const liveGamesCount = document.getElementById("live-games-count");
-      const gamesList = document.getElementById("lobby-games-list");
-      
-      const onlineUsersCount = document.getElementById("online-users-count");
-      const onlinePlayersList = document.getElementById("online-players-list");
-      
-      const chatMessagesContainer = document.getElementById("chat-messages-container");
-      const chatForm = document.getElementById("chat-form");
-      const chatInput = document.getElementById("chat-input");
+    // Elements
+    const logoutBtn = document.getElementById("logout-btn");
+    const userBadge = document.getElementById("user-badge");
+    const userAvatar = document.getElementById("user-avatar-placeholder");
+    const userDisplayName = document.getElementById("user-display-name");
+    const userDisplayRating = document.getElementById("user-display-rating");
+    
+    const challengeCount = document.getElementById("challenge-count");
+    const challengesList = document.getElementById("lobby-challenges-list");
+    const liveGamesCount = document.getElementById("live-games-count");
+    const gamesList = document.getElementById("lobby-games-list");
+    
+    const onlineUsersCount = document.getElementById("online-users-count");
+    const onlinePlayersList = document.getElementById("online-players-list");
+    
+    const chatMessagesContainer = document.getElementById("chat-messages-container");
+    const chatForm = document.getElementById("chat-form");
+    const chatInput = document.getElementById("chat-input");
 
-      let currentUserId = null;
-      let currentUsername = null;
-      let globalChatChannel = null;
+    let currentUserId = null;
+    let currentUsername = null;
+    let globalChatChannel = null;
 
-      // 1. Resolve active session and profile
-      if (!supabase) {
-        console.error("Supabase client is not initialized.");
-        return;
-      }
+    // 1. Resolve active session and profile
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !session.user) {
@@ -694,7 +692,8 @@
           }
         }
       });
-    });
+    }
+    init();
   </script>
 </body>
 </html>
