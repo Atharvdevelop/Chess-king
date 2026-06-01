@@ -73,9 +73,19 @@
       transition: transform 0.07s ease;
       position: relative;
       z-index: 2;
-      /* crisp drop shadow for legibility on both square colours */
-      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.55));
       line-height: 1;
+    }
+    /* White pieces: bright fill, dark outline for legibility on dark squares */
+    .chess-piece.piece-white {
+      color: #ffffff;
+      filter: drop-shadow(0 0 1px rgba(0,0,0,0.9))
+              drop-shadow(0 2px 4px rgba(0,0,0,0.65));
+    }
+    /* Black pieces: near-black fill, light outline for legibility on light squares */
+    .chess-piece.piece-black {
+      color: #1a1a1a;
+      filter: drop-shadow(0 0 1px rgba(255,255,255,0.6))
+              drop-shadow(0 2px 4px rgba(0,0,0,0.75));
     }
     .chess-piece:active { cursor: grabbing; transform: scale(1.18); }
     .chess-piece.enemy  { cursor: default; }
@@ -550,7 +560,7 @@
 
         const span = document.createElement('span');
         const isMyPiece = piece.color === myColor;
-        span.className = `chess-piece text-[3.5vmin] leading-none z-10
+        span.className = `chess-piece piece-${piece.color} text-[3.5vmin] leading-none z-10
                           ${isMyPiece ? '' : 'enemy'}`;
         span.textContent = PIECES[piece.color]?.[piece.type] ?? '?';
         span.title       = `${piece.color} ${piece.type}`;
