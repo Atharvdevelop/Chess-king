@@ -73,21 +73,10 @@
       transition: transform 0.07s ease;
       position: relative;
       z-index: 2;
-      line-height: 1;
+      /* Premium drop-shadow to lift vectors off the board */
+      filter: drop-shadow(0 3px 5px rgba(0,0,0,0.45));
     }
-    /* White pieces: bright fill, dark outline for legibility on dark squares */
-    .chess-piece.piece-white {
-      color: #ffffff;
-      filter: drop-shadow(0 0 1px rgba(0,0,0,0.9))
-              drop-shadow(0 2px 4px rgba(0,0,0,0.65));
-    }
-    /* Black pieces: near-black fill, light outline for legibility on light squares */
-    .chess-piece.piece-black {
-      color: #1a1a1a;
-      filter: drop-shadow(0 0 1px rgba(255,255,255,0.6))
-              drop-shadow(0 2px 4px rgba(0,0,0,0.75));
-    }
-    .chess-piece:active { cursor: grabbing; transform: scale(1.18); }
+    .chess-piece:active { cursor: grabbing; transform: scale(1.15); }
     .chess-piece.enemy  { cursor: default; }
     .chess-piece.enemy:active { transform: none; }
 
@@ -558,13 +547,15 @@
         const cell = document.getElementById(squareCellId(alg));
         if (!cell) return;
 
-        const span = document.createElement('span');
+        const img = document.createElement('img');
         const isMyPiece = piece.color === myColor;
-        span.className = `chess-piece piece-${piece.color} text-[3.5vmin] leading-none z-10
-                          ${isMyPiece ? '' : 'enemy'}`;
-        span.textContent = PIECES[piece.color]?.[piece.type] ?? '?';
-        span.title       = `${piece.color} ${piece.type}`;
-        cell.appendChild(span);
+        const colorPrefix = piece.color === 'white' ? 'w' : 'b';
+        img.src = `/assets/pieces/${colorPrefix}_${piece.type}.svg`;
+        img.className = `chess-piece w-[82%] h-[82%] object-contain z-10
+                         ${isMyPiece ? '' : 'enemy'}`;
+        img.draggable = false;
+        img.title     = `${piece.color} ${piece.type}`;
+        cell.appendChild(img);
       });
 
       // King-in-check highlight
