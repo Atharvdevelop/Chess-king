@@ -8,6 +8,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // Must match the storageKey used by the CDN client in index.html
+    // so both clients share the same session in localStorage.
+    storageKey: 'chess-king-auth',
+  },
   realtime: {
     params: {
       eventsPerSecond: 10

@@ -59,7 +59,13 @@
     // Using a totally unique global variable name to completely prevent browser variable clashing
     window.chessSupabase = null;
     try {
-      window.chessSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      window.chessSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          // Must match the storageKey in src/lib/supabase.ts
+          // so sign-out on inner pages also clears the session index.html checks
+          storageKey: 'chess-king-auth',
+        }
+      });
     } catch (e) {
       console.error("Failed to initialize Supabase client:", e);
     }
