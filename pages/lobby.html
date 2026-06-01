@@ -4,150 +4,697 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lobby | Chess King</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    tailwind.config = { darkMode: 'class' }
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              950: '#030712',
+            }
+          }
+        }
+      }
+    }
   </script>
+
+  <!-- Custom styles / animations -->
   <style>
-    body { background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent 40%); }
-    .glass-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); border: 1px solid rgba(51, 65, 85, 0.4); }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 45%);
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+    .glass-input {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+    }
+    .glass-input:focus {
+      border-color: rgb(139, 92, 246);
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.2);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.4);
+    }
   </style>
+
+  <!-- Global Shared Auth Guard -->
+  <script type="module" src="/src/lib/authGuard.ts"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
 
-  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
-    <div class="flex items-center gap-2">
-      <span class="text-xl font-black bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">Chess King</span>
+  <!-- Header Navigation -->
+  <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-violet-600 to-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+          </svg>
+        </div>
+        <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Chess King</span>
+      </div>
+
+      <nav class="hidden md:flex items-center gap-6">
+        <a href="/pages/lobby.html" class="text-violet-400 font-medium text-sm transition-colors px-3 py-2 rounded-md bg-violet-500/10">Lobby</a>
+        <a href="/pages/challenge.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">Create Challenge</a>
+        <a href="/pages/player.html" class="text-slate-400 hover:text-white font-medium text-sm transition-colors px-3 py-2 rounded-md">My Profile</a>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <!-- User Badge -->
+        <div id="user-badge" class="hidden sm:flex items-center gap-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
+          <div class="w-6.5 h-6.5 rounded-full bg-violet-600/30 flex items-center justify-center text-xs font-semibold text-violet-300" id="user-avatar-placeholder">U</div>
+          <span class="text-xs font-medium text-slate-300" id="user-display-name">Username</span>
+          <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-mono" id="user-display-rating">1200 ELO</span>
+        </div>
+
+        <button id="logout-btn" class="text-xs font-medium text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/30 px-3 py-1.5 rounded-lg transition-all duration-200 bg-slate-900/50">
+          Sign Out
+        </button>
+      </div>
     </div>
-    <nav class="flex gap-6 text-sm font-medium text-slate-400">
-      <a href="/pages/lobby.html" class="text-violet-400">Lobby</a>
-      <a href="/pages/challenge.html" class="hover:text-slate-200 transition-colors">Challenges</a>
-      <a href="/pages/player.html" class="hover:text-slate-200 transition-colors">Profile</a>
-    </nav>
   </header>
 
-  <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+  <!-- Main Layout -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-6 overflow-hidden">
     
-    <div class="lg:col-span-1 glass-card rounded-2xl p-4 flex flex-col h-[calc(100vh-140px)]">
-      <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Online Players
-      </h2>
-      <div id="players-list" class="flex-1 overflow-y-auto space-y-2 pr-1">
-        <p class="text-xs text-slate-500 italic">Scanning lobby...</p>
-      </div>
-    </div>
+    <!-- Left Column: Challenges & Active Games -->
+    <div class="flex-1 flex flex-col gap-6 min-w-0">
+      
+      <!-- Quick Match Options / CTAs -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="/pages/challenge.html?mode=open" class="glass-panel hover:border-violet-500/40 p-5 rounded-2xl transition-all duration-300 hover:translate-y-[-2px] group relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <div class="absolute -right-8 -top-8 w-24 h-24 bg-violet-600/10 rounded-full blur-xl group-hover:bg-violet-600/20 transition-all duration-300"></div>
+          <div>
+            <span class="text-violet-400 text-xs font-semibold tracking-wider uppercase">Open Matchmaking</span>
+            <h3 class="text-lg font-bold text-white mt-1">Quick Play</h3>
+            <p class="text-xs text-slate-400 mt-1 max-w-[280px]">Select a time format and pair instantly with any waiting player.</p>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs font-semibold text-violet-400 mt-4">
+            Find Match <span class="group-hover:translate-x-1 transition-transform">→</span>
+          </div>
+        </a>
 
-    <div class="lg:col-span-2 space-y-6 flex flex-col h-[calc(100vh-140px)]">
-      <div class="glass-card rounded-2xl p-6 flex-1 flex flex-col">
-        <h2 class="text-lg font-bold text-white mb-4">Live Match Arena</h2>
-        <div id="games-list" class="flex-1 overflow-y-auto space-y-3">
-          <p class="text-sm text-slate-500 italic">No live matches running at the moment.</p>
+        <a href="/pages/challenge.html?mode=direct" class="glass-panel hover:border-cyan-500/40 p-5 rounded-2xl transition-all duration-300 hover:translate-y-[-2px] group relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <div class="absolute -right-8 -top-8 w-24 h-24 bg-cyan-600/10 rounded-full blur-xl group-hover:bg-cyan-600/20 transition-all duration-300"></div>
+          <div>
+            <span class="text-cyan-400 text-xs font-semibold tracking-wider uppercase">Direct Invitation</span>
+            <h3 class="text-lg font-bold text-white mt-1">Challenge Friend</h3>
+            <p class="text-xs text-slate-400 mt-1 max-w-[280px]">Invite a specific player directly by typing their unique username.</p>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 mt-4">
+            Create Invitation <span class="group-hover:translate-x-1 transition-transform">→</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Live / Active Challenges -->
+      <section class="glass-panel rounded-2xl p-6 flex flex-col flex-1 min-h-[300px]">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-violet-500 animate-ping"></span>
+            <h2 class="text-base font-bold text-white tracking-wide">Live Challenges</h2>
+          </div>
+          <span class="text-xs text-slate-400" id="challenge-count">0 waiting</span>
         </div>
-      </div>
+        
+        <!-- Challenge Cards Grid/List -->
+        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-3" id="lobby-challenges-list">
+          <!-- Placeholder / Loading -->
+          <div class="flex flex-col items-center justify-center py-12 text-slate-500">
+            <svg class="w-8 h-8 mb-2 animate-spin text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.213 6H16" />
+            </svg>
+            <p class="text-sm">Loading lobby challenges...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Active Games -->
+      <section class="glass-panel rounded-2xl p-6 min-h-[220px]">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-base font-bold text-white tracking-wide">Ongoing Battles</h2>
+          <span class="text-xs text-slate-400" id="live-games-count">0 games</span>
+        </div>
+        
+        <div class="overflow-y-auto pr-1 flex flex-col gap-3 max-h-[240px]" id="lobby-games-list">
+          <p class="text-sm text-slate-500 text-center py-8">No active chess matches on the server right now.</p>
+        </div>
+      </section>
+      
     </div>
 
-    <div class="lg:col-span-1 glass-card rounded-2xl p-4 flex flex-col h-[calc(100vh-140px)]">
-      <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">Global Chat</h2>
-      <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 pr-1 text-xs mb-3">
-      </div>
-      <form id="chat-form" class="flex gap-2">
-        <input type="text" id="chat-input" placeholder="Say hello..." class="flex-1 bg-slate-900/50 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-violet-500 transition-colors" required />
-        <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">Send</button>
-      </form>
-    </div>
+    <!-- Right Column: Sidebar Chat & Active Players -->
+    <div class="w-full lg:w-80 flex flex-col gap-6 shrink-0">
+      
+      <!-- Online Players -->
+      <section class="glass-panel rounded-2xl p-5 flex flex-col h-[280px]">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-white tracking-wider uppercase">Online Players</h3>
+          <span class="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-semibold" id="online-users-count">0</span>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-2" id="online-players-list">
+          <!-- List generated dynamically -->
+        </div>
+      </section>
 
+      <!-- Lobby Global Chat -->
+      <section class="glass-panel rounded-2xl p-5 flex flex-col h-[400px]">
+        <div class="border-b border-slate-800 pb-3 mb-3">
+          <h3 class="text-sm font-bold text-white tracking-wider uppercase">Global Chat</h3>
+        </div>
+
+        <!-- Chat messages container -->
+        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 text-sm" id="chat-messages-container">
+          <div class="text-slate-500 text-center py-12 text-xs">
+            Welcome to Global Chat! Connect with players and find challenges.
+          </div>
+        </div>
+
+        <!-- Send block -->
+        <form id="chat-form" class="mt-3 flex gap-2">
+          <input type="text" id="chat-input" placeholder="Type a message..." class="flex-1 glass-input rounded-xl px-3 py-2 text-sm text-slate-200 outline-none" autocomplete="off" />
+          <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white rounded-xl px-4 py-2 transition-all text-sm font-medium shadow-lg hover:shadow-violet-600/20">
+            Send
+          </button>
+        </form>
+      </section>
+
+    </div>
   </main>
 
-  <script type="text/javascript">
-    const SUPABASE_URL = "https://evvilodteymztdgbdhgi.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2dmlsb2R0ZXltenRkZ2JkaGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzE3NTUsImV4cCI6MjA5Mjk0Nzc1NX0.2IjuXfxXwhMIkfFmlR8SCi4bEZ_gaR8E0M3XqiXtRm4";
-    
-    let supabase;
-    let currentUser = null;
+  <footer class="border-t border-slate-900 py-6 bg-slate-950/60 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+      Chess King © 2026. Made with passion for chess enthusiasts.
+    </div>
+  </footer>
 
-    window.addEventListener('load', async () => {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  <!-- Real-time Lobby Logic -->
+  <script type="text/javascript" id="lobby-logic-script">
+    document.addEventListener("DOMContentLoaded", async () => {
+      console.log("Lobby client logic initializing...");
+
+      // Elements
+      const logoutBtn = document.getElementById("logout-btn");
+      const userBadge = document.getElementById("user-badge");
+      const userAvatar = document.getElementById("user-avatar-placeholder");
+      const userDisplayName = document.getElementById("user-display-name");
+      const userDisplayRating = document.getElementById("user-display-rating");
       
+      const challengeCount = document.getElementById("challenge-count");
+      const challengesList = document.getElementById("lobby-challenges-list");
+      const liveGamesCount = document.getElementById("live-games-count");
+      const gamesList = document.getElementById("lobby-games-list");
+      
+      const onlineUsersCount = document.getElementById("online-users-count");
+      const onlinePlayersList = document.getElementById("online-players-list");
+      
+      const chatMessagesContainer = document.getElementById("chat-messages-container");
+      const chatForm = document.getElementById("chat-form");
+      const chatInput = document.getElementById("chat-input");
+
+      let currentUserId = null;
+      let currentUsername = null;
+      let globalChatChannel = null;
+
+      // 1. Resolve active session and profile
+      if (!supabase) {
+        console.error("Supabase client is not initialized.");
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      if (!session || !session.user) {
         window.location.href = '/index.html';
         return;
       }
-      currentUser = session.user;
 
-      initializeLobbyEngine();
-    });
+      currentUserId = session.user.id;
 
-    async function initializeLobbyEngine() {
-      // FIX 1: Resolve the username metadata string BEFORE running any lists
-      let usernameString = currentUser.user_metadata?.username;
-      if (!usernameString) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', currentUser.id)
-          .maybeSingle();
-        usernameString = profileData?.username || currentUser.email.split('@')[0];
+      // Fetch user profile from public.profiles
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('username, email')
+        .eq('id', currentUserId)
+        .single();
+
+      if (profileErr || !profile) {
+        console.error("Failed to fetch user profile:", profileErr);
+        // Fallback to email username if profile fetch fails
+        currentUsername = session.user.email.split('@')[0];
+      } else {
+        currentUsername = profile.username;
       }
 
-      // FIX 2: Execute the upsert statement FIRST so the user is officially online
-      await supabase.from('players').upsert({
-        id: currentUser.id,
-        username: usernameString,
-        status: 'online',
-        last_seen: new Date().toISOString()
-      }, { onConflict: 'id' });
+      // Update Header UI
+      userDisplayName.textContent = currentUsername;
+      userAvatar.textContent = currentUsername.charAt(0).toUpperCase();
+      userBadge.classList.remove("hidden");
 
-      // FIX 3: Fetch players only AFTER your user state has been written to the table
-      fetchOnlinePlayers();
-      
-      // FIX 4: Bind the change listener directly to update our list on any mutation event
-      supabase
-        .channel('public:players')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
-          console.log("Realtime player change detected:", payload);
-          fetchOnlinePlayers();
+      // Logout handler
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", async () => {
+          // Set offline status in players table
+          await supabase.from('players').delete().eq('id', currentUserId);
+          await supabase.auth.signOut();
+          window.location.href = '/index.html';
+        });
+      }
+
+      // Heartbeat helper
+      async function sendHeartbeat() {
+        try {
+          await supabase.from('players').upsert({
+            id: currentUserId,
+            username: currentUsername,
+            status: 'online',
+            last_seen: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error("Heartbeat failed:", e);
+        }
+      }
+
+      // Initial presence heartbeat
+      await sendHeartbeat();
+      // Keep online presence active every 10s
+      const heartbeatInterval = setInterval(sendHeartbeat, 10000);
+
+      // 2. Fetch Lobby Data
+      async function refreshLobbyData() {
+        try {
+          // Fetch Online Players (lobby_players view filters busy / offline)
+          const { data: players, error: playersErr } = await supabase
+            .from('lobby_players')
+            .select('*')
+            .neq('id', currentUserId);
+
+          if (!playersErr && players) {
+            onlineUsersCount.textContent = players.length;
+            onlinePlayersList.innerHTML = '';
+            
+            if (players.length === 0) {
+              onlinePlayersList.innerHTML = `
+                <div class="text-xs text-slate-500 text-center py-4 italic">
+                  No other players online
+                </div>
+              `;
+            } else {
+              players.forEach(player => {
+                const row = document.createElement("div");
+                row.className = "flex justify-between items-center p-2 rounded-xl bg-slate-900/50 border border-slate-800/40 text-sm";
+                row.innerHTML = `
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span class="font-semibold text-slate-200">${player.username}</span>
+                  </div>
+                  <a href="/pages/challenge.html?u=${encodeURIComponent(player.username)}&mode=direct" class="text-[11px] bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 font-bold border border-violet-500/20 px-2.5 py-1 rounded-lg transition-all shrink-0">
+                    Challenge
+                  </a>
+                `;
+                onlinePlayersList.appendChild(row);
+              });
+            }
+          }
+
+          // Fetch Active matches from currently_playing view
+          const { data: matches, error: matchesErr } = await supabase
+            .from('currently_playing')
+            .select('*');
+
+          if (!matchesErr && matches) {
+            liveGamesCount.textContent = matches.length + (matches.length === 1 ? " game" : " games");
+            gamesList.innerHTML = '';
+            
+            if (matches.length === 0) {
+              gamesList.innerHTML = `
+                <p class="text-sm text-slate-500 text-center py-8">No active chess matches on the server right now.</p>
+              `;
+            } else {
+              matches.forEach(match => {
+                const row = document.createElement("div");
+                row.className = "flex justify-between items-center p-4 bg-slate-900/50 border border-slate-800 rounded-xl text-sm";
+                row.innerHTML = `
+                  <div class="flex items-center gap-3 text-slate-200 font-medium">
+                    <span class="font-bold text-violet-400">${match.white_player}</span> 
+                    <span class="text-slate-500 text-xs">vs</span> 
+                    <span class="font-bold text-cyan-400">${match.black_player}</span>
+                  </div>
+                  <a href="/pages/play.html?gameId=${match.game_id}&mode=spectate" class="text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-1.5 rounded-lg border border-slate-700 transition-all shrink-0">
+                    Spectate
+                  </a>
+                `;
+                gamesList.appendChild(row);
+              });
+            }
+          }
+
+          // Fetch pending direct challenges aimed at this user
+          // (challenger already wrote the game row with status='pending')
+          const { data: pendingGames, error: pendingErr } = await supabase
+            .from('games')
+            .select('id, white_player_id, white_player_username, black_player_username, time_format, status, created_at')
+            .eq('black_player_id', currentUserId)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+
+          if (!pendingErr && pendingGames) {
+            challengeCount.textContent = pendingGames.length + ' waiting';
+            challengesList.innerHTML = '';
+
+            if (pendingGames.length === 0) {
+              challengesList.innerHTML = `
+                <div class="text-sm text-slate-500 text-center py-10">
+                  No pending challenges at the moment.
+                </div>
+              `;
+            } else {
+              pendingGames.forEach(game => {
+                const FORMAT_LABELS = { '1+0': 'Bullet ⚡', '3+2': 'Blitz 🔥', '10+0': 'Rapid 🌿' };
+                const formatLabel  = FORMAT_LABELS[game.time_format] || game.time_format || 'Standard';
+                const challenger   = game.white_player_username || 'Unknown';
+
+                const card = document.createElement('div');
+                card.id = `challenge-card-${game.id}`;
+                card.className = 'flex flex-col gap-3 p-4 bg-violet-950/25 border border-violet-500/25 rounded-xl text-sm transition-all';
+                card.innerHTML = `
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <div class="flex items-center gap-2 mb-0.5">
+                        <span class="w-2 h-2 rounded-full bg-violet-400 animate-ping inline-block"></span>
+                        <span class="font-bold text-white">${challenger}</span>
+                        <span class="text-slate-500 font-medium text-xs">challenges you!</span>
+                      </div>
+                      <span class="inline-block text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 text-violet-300 px-2 py-0.5 rounded-full border border-violet-500/20">
+                        ${formatLabel}
+                      </span>
+                    </div>
+                    <div class="flex gap-1.5 shrink-0">
+                      <button
+                        id="accept-${game.id}"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all shadow-md shadow-emerald-900/30"
+                      >Accept</button>
+                      <button
+                        id="decline-${game.id}"
+                        class="bg-rose-900/60 hover:bg-rose-600 border border-rose-500/30 hover:border-rose-500 text-rose-300 hover:text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all"
+                      >Decline</button>
+                    </div>
+                  </div>
+                `;
+
+                // Wire up buttons after insertion
+                card.querySelector(`#accept-${game.id}`)
+                  .addEventListener('click', () => handleAcceptPendingGame(game));
+                card.querySelector(`#decline-${game.id}`)
+                  .addEventListener('click', () => handleDeclinePendingGame(game.id));
+
+                challengesList.appendChild(card);
+              });
+            }
+          }
+
+        } catch (e) {
+          console.error("Failed to refresh lobby data:", e);
+        }
+      }
+
+      // Initial fetch
+      await refreshLobbyData();
+      // Periodically refresh lists every 5s
+      const poller = setInterval(refreshLobbyData, 5000);
+
+      // ── Accept a pending direct-challenge game ────────────────
+      // The game row already exists (challenger created it with status='pending').
+      // We just flip status → 'active'. The challenger's realtime sub fires and
+      // redirects them; we redirect ourselves here.
+      async function handleAcceptPendingGame(game) {
+        const card = document.getElementById(`challenge-card-${game.id}`);
+        if (card) {
+          card.querySelector(`#accept-${game.id}`).disabled = true;
+          card.querySelector(`#accept-${game.id}`).textContent = 'Joining…';
+        }
+        try {
+          // Mark both players busy
+          await supabase.from('players')
+            .update({ status: 'busy' })
+            .in('id', [currentUserId, game.white_player_id]);
+
+          // Flip game status → active (triggers challenger's subscription)
+          const { error: updateErr } = await supabase
+            .from('games')
+            .update({
+              status:               'active',
+              black_player_username: currentUsername   // ensure our username is stored
+            })
+            .eq('id', game.id);
+
+          if (updateErr) throw updateErr;
+
+          // Navigate to the board
+          window.location.href = `/pages/play.html?gameId=${game.id}`;
+
+        } catch (e) {
+          console.error('Failed to accept pending game:', e);
+          alert('Error accepting challenge. Please try again.');
+          if (card) {
+            card.querySelector(`#accept-${game.id}`).disabled = false;
+            card.querySelector(`#accept-${game.id}`).textContent = 'Accept';
+          }
+        }
+      }
+
+      // ── Decline a pending direct-challenge game ───────────────
+      async function handleDeclinePendingGame(gameId) {
+        const card = document.getElementById(`challenge-card-${gameId}`);
+        if (card) {
+          card.querySelector(`#decline-${gameId}`).disabled = true;
+          card.querySelector(`#decline-${gameId}`).textContent = 'Declining…';
+        }
+        try {
+          await supabase
+            .from('games')
+            .update({ status: 'rejected' })
+            .eq('id', gameId);
+
+          // Remove card from UI immediately
+          if (card) card.remove();
+          await refreshLobbyData();
+        } catch (e) {
+          console.error('Failed to decline pending game:', e);
+        }
+      }
+
+      // ── Real-time: watch games table for new/updated pending challenges ──
+      // We subscribe to both INSERT (new challenge arrives) and UPDATE
+      // (e.g. challenger cancels → status becomes 'cancelled') so the UI
+      // stays in sync without waiting for the 5-second poller.
+      const challengesSubscription = supabase
+        .channel(`lobby-pending-games-${currentUserId}`)
+        .on('postgres_changes', {
+          event:  'INSERT',
+          schema: 'public',
+          table:  'games',
+          filter: `black_player_id=eq.${currentUserId}`
+        }, async (payload) => {
+          // A new direct challenge just arrived — refresh the list
+          if (payload.new && payload.new.status === 'pending') {
+            await refreshLobbyData();
+          }
+        })
+        .on('postgres_changes', {
+          event:  'UPDATE',
+          schema: 'public',
+          table:  'games',
+          filter: `black_player_id=eq.${currentUserId}`
+        }, async (payload) => {
+          const row = payload.new;
+          if (!row) return;
+          // Challenger cancelled while we were deciding
+          if (row.status === 'cancelled' || row.status === 'rejected') {
+            const card = document.getElementById(`challenge-card-${row.id}`);
+            if (card) card.remove();
+            await refreshLobbyData();
+          }
         })
         .subscribe();
-    }
 
-    async function fetchOnlinePlayers() {
-      // FIX 5: Targeted 'players' instead of a view structure to match the socket loop channel topic
-      const { data, error } = await supabase
-        .from('players')
-        .select('*');
+      // Listen for game rows where this user is white OR black player.
+      // Supabase postgres_changes filter only supports one column per .on() call,
+      // so we register two listeners on the same channel — one per player-colour slot.
+      // Both INSERT (new game created) and UPDATE (e.g. status changed to active) are
+      // caught so the redirect fires regardless of which side created the row.
+      let gameRedirectFired = false; // guard against double-redirect races
 
-      if (error) {
-        console.error("Error fetching online players:", error);
-        return;
+      function handleGameRowChange(payload) {
+        const row = payload.new;
+        if (!row || gameRedirectFired) return;
+
+        const isParticipant =
+          row.white_player_id === currentUserId ||
+          row.black_player_id === currentUserId;
+
+        // Only redirect for active games, not finished/waiting ones
+        if (isParticipant && row.status === 'active') {
+          gameRedirectFired = true;
+          window.location.href = '/pages/play.html?gameId=' + row.id;
+        }
       }
-      
-      const container = document.getElementById('players-list');
-      container.innerHTML = '';
 
-      // Count players that are NOT the current user
-      const otherPlayers = data.filter(player => player.id !== currentUser.id);
+      const gamesSubscription = supabase
+        .channel(`lobby-games-${currentUserId}`)
+        // White-side slot: catches rows this user created as White
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games',
+          filter: `white_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `white_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        // Black-side slot: catches rows this user joined as Black
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games',
+          filter: `black_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `black_player_id=eq.${currentUserId}`
+        }, handleGameRowChange)
+        .subscribe((status) => {
+          console.log(`[games-sub] channel status: ${status}`);
+        });
 
-      if (otherPlayers.length === 0) {
-        container.innerHTML = '<p class="text-[11px] text-slate-500 italic">No other players online yet...</p>';
-        return;
-      }
-
-      otherPlayers.forEach(player => {
-        const row = document.createElement('div');
-        row.className = "flex justify-between items-center p-2 rounded-xl bg-slate-900/40 border border-slate-800/40";
-        row.innerHTML = `
-          <span class="text-xs font-medium text-slate-300">@${player.username}</span>
-          <button onclick="issueDirectChallenge('${player.id}')" class="bg-violet-600/20 hover:bg-violet-600 text-violet-400 hover:text-white text-[10px] font-bold px-2 py-1 rounded-lg transition-all border border-violet-500/20">Challenge</button>
-        `;
-        container.appendChild(row);
+      // 4. Real-time Global Chat (Broadcast channel subscription)
+      globalChatChannel = supabase.channel('lobby-global-chat', {
+        config: {
+          broadcast: { self: true },
+        },
       });
-    }
 
-    function issueDirectChallenge(targetId) {
-      window.location.href = `/pages/challenge.html?targetPlayer=${targetId}`;
-    }
+      // Recipient callback
+      globalChatChannel.on('broadcast', { event: 'chat-message' }, (payload) => {
+        appendChatMessage(payload.payload);
+      });
+
+      globalChatChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log("Subscribed to global lobby chat channel.");
+        }
+      });
+
+      function appendChatMessage(data) {
+        const isMe = data.userId === currentUserId;
+        const msgDiv = document.createElement("div");
+        msgDiv.className = `flex flex-col max-w-[85%] rounded-2xl p-3 text-xs leading-normal ${
+          isMe 
+            ? 'bg-violet-600 text-white self-end rounded-tr-none' 
+            : 'bg-slate-900 border border-slate-800 text-slate-100 self-start rounded-tl-none'
+        }`;
+        
+        msgDiv.innerHTML = `
+          <div class="font-bold mb-0.5 text-[10px] ${isMe ? 'text-violet-200' : 'text-slate-400'}">${data.username}</div>
+          <div>${escapeHtml(data.text)}</div>
+        `;
+        
+        // Remove "Welcome" message if present
+        const welcomeText = chatMessagesContainer.querySelector(".text-slate-500");
+        if (welcomeText) {
+          welcomeText.remove();
+        }
+
+        chatMessagesContainer.appendChild(msgDiv);
+        chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+
+        // Cap message history at last 50
+        while (chatMessagesContainer.children.length > 50) {
+          chatMessagesContainer.removeChild(chatMessagesContainer.firstChild);
+        }
+      }
+
+      // Send handler
+      chatForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        chatInput.value = '';
+        
+        try {
+          await globalChatChannel.send({
+            type: 'broadcast',
+            event: 'chat-message',
+            payload: {
+              userId: currentUserId,
+              username: currentUsername,
+              text: text
+            }
+          });
+        } catch (err) {
+          console.error("Failed to broadcast chat message:", err);
+        }
+      });
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Cleanup subscriptions on page hide / unload
+      window.addEventListener("beforeunload", () => {
+        clearInterval(heartbeatInterval);
+        clearInterval(poller);
+        if (supabase) {
+          supabase.removeChannel(challengesSubscription);
+          supabase.removeChannel(gamesSubscription);
+          if (globalChatChannel) {
+            supabase.removeChannel(globalChatChannel);
+          }
+        }
+      });
+    });
   </script>
 </body>
 </html>
