@@ -810,6 +810,9 @@
             "a1":{"type":"rook","color":"white"},"b1":{"type":"knight","color":"white"},"c1":{"type":"bishop","color":"white"},"d1":{"type":"queen","color":"white"},"e1":{"type":"king","color":"white"},"f1":{"type":"bishop","color":"white"},"g1":{"type":"knight","color":"white"},"h1":{"type":"rook","color":"white"}
           };
 
+          const minutes = parseInt(timeFormat.split('+')[0], 10) || 10;
+          const limitSeconds = minutes * 60;
+
           const { data: newGame, error: gameErr } = await supabase
             .from('games')
             .insert({
@@ -817,7 +820,9 @@
               black_player_id:       opponentId,
               white_player_username: currentUsername || session.user.email.split('@')[0],
               black_player_username: targetUser,
-              time_format:           timeFormat,
+              time_limit:            limitSeconds,
+              white_time_remaining:  limitSeconds,
+              black_time_remaining:  limitSeconds,
               board_state:           initialBoard,
               current_turn:          'white',
               status:                'pending'

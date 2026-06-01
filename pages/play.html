@@ -386,7 +386,9 @@
   </div>
 
   <!-- ░░ Main game script ░░ ──────────────────────────────────────────── -->
-  <script>
+  <script type="module" id="game-logic-script">
+  import { supabase } from '/src/lib/supabase.ts';
+
   /* ─────────────────────────────────────────────────────────────────────────
      Chess King — Live Arena
      All game state is driven from Supabase via realtime postgres_changes.
@@ -397,7 +399,6 @@
      My colour is determined at load time from game.white_player_id vs my id.
      When playing as Black the board is rendered flipped (rank 1 at top).
   ───────────────────────────────────────────────────────────────────────── */
-  document.addEventListener('DOMContentLoaded', () => {
 
     /* ── DOM refs ──────────────────────────────────────────────────────── */
     const boardGrid        = document.getElementById('chessboard-grid');
@@ -1103,11 +1104,6 @@
 
     /* ── Bootstrap: load game & resolve my identity ─────────────────────── */
     async function init() {
-      if (typeof supabase === 'undefined') {
-        console.error('[play] Supabase not ready');
-        return;
-      }
-
       if (!gameId) {
         boardLoading.querySelector('p').textContent = 'No game ID in URL.';
         return;
@@ -1224,7 +1220,6 @@
 
     /* ── Kick off ───────────────────────────────────────────────────────── */
     init();
-  });
   </script>
 </body>
 </html>
