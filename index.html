@@ -6,6 +6,8 @@
   <meta name="google-site-verification" content="v2uj2WtFnUSb9vfQ5UVvVLmdyfy8Q4C2B6uvFcIUI3M" />
   <title>Chess King | Play Real-Time Multiplayer Chess Online</title>
   <meta name="description" content="Play chess online with Chess King. Challenge your friends to direct multiplayer matches or join the matchmaking pool instantly on a premium real-time platform." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://chess-king-seven.vercel.app/" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -113,17 +115,17 @@
 
     <div class="glass-panel rounded-3xl p-8 shadow-2xl relative overflow-hidden">
       
-      <div id="error-banner" class="hidden mb-5 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-2">
+      <div id="error-banner" data-nosnippet class="hidden mb-5 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-2">
         <span>⚠️</span>
         <span id="error-message">Error message details here.</span>
       </div>
 
-      <div id="success-banner" class="hidden mb-5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-start gap-2">
+      <div id="success-banner" data-nosnippet class="hidden mb-5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-start gap-2">
         <span>✅</span>
         <span id="success-message">Operation successful!</span>
       </div>
 
-      <form id="signin-form" class="space-y-4">
+      <form id="signin-form" data-nosnippet class="space-y-4">
         <div>
           <label for="si-identifier" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username or Email</label>
           <input type="text" id="si-identifier" placeholder="Enter username or email..." class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none" required />
@@ -144,7 +146,7 @@
         </button>
       </form>
 
-      <form id="signup-form" class="hidden space-y-4">
+      <form id="signup-form" data-nosnippet class="hidden space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label for="su-username" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username</label>
@@ -179,7 +181,7 @@
         </button>
       </form>
 
-      <div class="mt-6 text-center text-sm text-slate-400 border-t border-slate-900 pt-5">
+      <div data-nosnippet class="mt-6 text-center text-sm text-slate-400 border-t border-slate-900 pt-5">
         <span id="toggle-prompt-text">Don't have an account?</span>
         <button id="toggle-auth-mode-btn" class="text-violet-400 hover:text-violet-300 font-semibold transition-all">Register</button>
       </div>
