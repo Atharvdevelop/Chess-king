@@ -568,17 +568,6 @@
       tabOpen.addEventListener("click",   () => activateTab('open'));
       tabDirect.addEventListener("click", () => activateTab('direct'));
 
-      // ── URL param: auto-activate tab & pre-fill username ──
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('mode') === 'direct') {
-        activateTab('direct');
-        const preUser = params.get('u');
-        if (preUser) {
-          document.getElementById('target-username').value = decodeURIComponent(preUser);
-          validateUsername();
-        }
-      }
-
       // ── Open-challenge time card selection (grid) ─────────
       const timeCards      = document.querySelectorAll("#time-formats-container > div");
       const customTimeInputs = document.getElementById("custom-time-inputs");
@@ -1077,6 +1066,21 @@
           }
         }
       });
+
+      // ── URL param: auto-activate tab & pre-fill username ──
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'direct') {
+        activateTab('direct');
+        const preUser = params.get('u');
+        if (preUser) {
+          const urlUsername = decodeURIComponent(preUser);
+          usernameInput.value = urlUsername;
+          // Explicitly trigger the input event to update validation state trackers
+          usernameInput.dispatchEvent(new Event('input', { bubbles: true }));
+          usernameInput.dispatchEvent(new Event('change', { bubbles: true }));
+          validateUsername();
+        }
+      }
 
       // ── Cleanup on page unload ───────────────────────────────────
       window.addEventListener('beforeunload', () => {
