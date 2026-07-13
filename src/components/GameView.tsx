@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Game, PieceColor, Position, Move } from '../types/chess';
 import { createInitialBoard, makeMove, algebraicToPosition } from '../lib/chessLogic';
-import { getGame, makeGameMove, subscribeToGame, getMoves, endGameOnTimeout } from '../lib/gameService';
+import { getGame, makeGameMove, subscribeToGame, getMoves, endGameOnTimeout, endGame } from '../lib/gameService';
 import ChessBoard from './ChessBoard';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
 
@@ -18,6 +18,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
   const [movesData, setMovesData] = useState<Move[]>([]);
   const [currentViewIndex, setCurrentViewIndex] = useState<number>(-1);
   const [showWinnerModal, setShowWinnerModal] = useState<boolean>(false);
+  const [showResignModal, setShowResignModal] = useState<boolean>(false);
   const [copied, setCopied] = useState(false);
   const [whiteTime, setWhiteTime] = useState(600);
   const [blackTime, setBlackTime] = useState(600);
@@ -48,8 +49,6 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
       }
 
       // Grab the server-deducted clock values from the realtime payload.
-      // Column names in the DB (and therefore in payload.new) are
-      // white_time_remaining / black_time_remaining — NOT white_time / black_time.
       const wt = updatedGame.white_time_remaining;
       const bt = updatedGame.black_time_remaining;
 
@@ -155,13 +154,12 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     for (let i = 0; i <= currentViewIndex; i++) {
       const m = movesData[i];
       
-      // CRITICAL: Defensive check to prevent the White Screen of Death
       const moveNotation = m?.notation || '...';
       const notationParts = moveNotation !== '...' ? moveNotation.split('-') : [];
 
       if (notationParts.length !== 2) {
         console.warn('Skipping corrupted move data at index', i, m);
-        continue; // Skip corrupted data
+        continue;
       }
 
       try {
@@ -176,18 +174,37 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     return board;
   }, [game?.board_state, movesData, currentViewIndex]);
 
+  // Compute algebraic square highlights of the active/viewed move
+  const lastMovePositions = useMemo(() => {
+    if (movesData.length === 0) return { from: null, to: null };
+
+    const activeMoveIndex = currentViewIndex === -1 ? movesData.length - 1 : currentViewIndex;
+    const activeMove = movesData[activeMoveIndex];
+    if (!activeMove || !activeMove.notation || activeMove.notation === '...') {
+      return { from: null, to: null };
+    }
+
+    const parts = activeMove.notation.split('-');
+    if (parts.length !== 2) return { from: null, to: null };
+
+    try {
+      return {
+        from: algebraicToPosition(parts[0]),
+        to: algebraicToPosition(parts[1])
+      };
+    } catch {
+      return { from: null, to: null };
+    }
+  }, [movesData, currentViewIndex]);
+
   const handleMove = async (from: Position, to: Position) => {
     if (!game || isMoving) return;
     setIsMoving(true);
 
     try {
-      // Use the unified profile UUID — this must match games.white/black_player_id
-      // so the Postgres RPC can validate whose turn it is.
       const updatedGame = await makeGameMove(gameId, profileId, from, to, game);
 
-      // Optimistically apply the returned game JSON block immediately so the piece
-      // stays on its destination square and timers sync before the realtime subscription
-      // delivers the authoritative DB snapshot.
+      // Optimistically apply the returned game JSON block immediately
       setGame((prev) =>
         prev
           ? { ...prev, ...updatedGame }
@@ -200,11 +217,19 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     }
   };
 
+  const handleResign = async () => {
+    setShowResignModal(false);
+    if (!playerColor) return;
+    const opponentColor = playerColor === 'white' ? 'black' : 'white';
+    try {
+      await endGame(gameId, opponentColor);
+    } catch (err) {
+      console.error('Resignation write failed:', err);
+    }
+  };
+
   const handleTimeUp = async (lostColor: PieceColor) => {
-    // Safety check 1: game must still be active (server may have already resolved it)
     if (!game || game.status !== 'active') return;
-    // Safety check 2: one-shot latch prevents a double-write race between the
-    // local 100ms tick loop and a near-simultaneous server-side move/resolution.
     if (timeoutFiredRef.current) return;
     timeoutFiredRef.current = true;
     await endGameOnTimeout(gameId, lostColor);
@@ -216,6 +241,20 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Determine game over reason
+  const winReason = useMemo(() => {
+    if (!game || game.status !== 'finished') return '';
+    if (game.winner === 'draw') return 'Stalemate';
+
+    const isTimeout = game.white_time_remaining <= 0 || game.black_time_remaining <= 0;
+    if (isTimeout) return 'Timeout';
+
+    const lastMove = movesData[movesData.length - 1];
+    if (lastMove && lastMove.is_checkmate) return 'Checkmate';
+
+    return 'Resignation';
+  }, [game, movesData]);
 
   if (!game) {
     return (
@@ -257,15 +296,23 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
   const opponentTimeCritical = opponentTime < 10;
 
   return (
-    // Main screen wrapper: Forces everything to stay inside 100% of the browser window height
     <div className="w-screen h-screen max-h-screen overflow-hidden bg-slate-950 flex flex-col lg:flex-row items-center justify-center p-4 gap-6 relative">
       
-      {/* Top Bar for Back / Copy link */}
+      {/* Top Bar */}
       <div className="w-full flex items-center justify-between text-slate-300 absolute top-0 left-0 p-4 z-10 pointer-events-auto">
-         <button onClick={onBackToLobby} className="flex items-center gap-2 hover:text-white transition-colors font-semibold bg-slate-900/60 p-2 rounded-lg backdrop-blur shadow-lg shadow-black/20 border border-slate-800">
+          <button onClick={onBackToLobby} className="flex items-center gap-2 hover:text-white transition-colors font-semibold bg-slate-900/60 p-2 rounded-lg backdrop-blur shadow-lg shadow-black/20 border border-slate-800">
             <ArrowLeft className="w-5 h-5" />
             <span className="hidden sm:inline">Back to Lobby</span>
           </button>
+
+          {!isWaiting && game.status === 'active' && playerColor && (
+            <button
+              onClick={() => setShowResignModal(true)}
+              className="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/50 px-4 py-2 rounded-lg font-semibold shrink-0 transition-colors shadow-lg shadow-rose-950/20"
+            >
+              Resign
+            </button>
+          )}
           
           {isWaiting && (
              <button onClick={copyGameLink} className="flex items-center gap-2 bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg transition-colors font-semibold backdrop-blur shadow-[0_0_12px_rgba(6,182,212,0.15)]">
@@ -284,10 +331,10 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
           )}
       </div>
 
-      {/* LEFT SIDE: The Chessboard Workspace */}
+      {/* LEFT SIDE: Board */}
       <div className="flex flex-col items-center justify-center w-full max-w-full lg:w-auto h-auto mt-12 lg:mt-0 relative shrink-0">
         
-        {/* Opponent Info Header */}
+        {/* Opponent Info */}
         <div className="w-[80vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
           <span className="font-medium text-sm flex items-center gap-2">
             {opponentUsername}
@@ -300,7 +347,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
           </span>
         </div>
 
-        {/* THE FIXED BOARD: 80vmin ensures it never exceeds 80% of the available window height or width */}
+        {/* Board Frame */}
         <div className="w-[80vmin] h-[80vmin] max-w-full max-h-full aspect-square bg-slate-900 border-2 border-slate-800 rounded-lg shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden relative">
           <ChessBoard
             board={currentBoard || game.board_state}
@@ -308,6 +355,8 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
             playerColor={playerColor}
             onMove={handleMove}
             isActive={game.status === 'active' && currentViewIndex === -1}
+            lastMoveFrom={lastMovePositions.from}
+            lastMoveTo={lastMovePositions.to}
           />
           
           {isWaiting && (
@@ -320,7 +369,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
           )}
         </div>
 
-        {/* Current User Info Footer */}
+        {/* My Info */}
         <div className="w-[80vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
           <span className="font-medium text-sm flex items-center gap-2">
             {myUsername}
@@ -334,8 +383,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
         </div>
       </div>
 
-      {/* RIGHT SIDE: Sidebar Widgets (Chat Panel + Moves Ledger) */}
-      {/* lg:h-[80vmin] locks the sidebar's height to match the board exactly, preventing screen layout shifts */}
+      {/* RIGHT SIDE: Sidebar widgets */}
       <div className="w-full max-w-full lg:w-[320px] xl:w-[380px] h-[300px] lg:h-[80vmin] flex flex-col gap-4">
         
         <div className="flex-1 bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col overflow-hidden shadow-2xl">
@@ -383,7 +431,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
           </div>
         </div>
         
-        {/* Chat Placeholder Widget */}
+        {/* Game Chat Panel Placeholder */}
         <div className="h-[120px] bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col items-center justify-center gap-2 shadow-2xl relative overflow-hidden group shrink-0">
           <div className="absolute inset-0 bg-gradient-to-t from-cyan-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <p className="text-xs font-mono text-slate-500 uppercase tracking-widest text-center">
@@ -394,6 +442,30 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
           </span>
         </div>
       </div>
+
+      {/* Resignation Confirmation Modal */}
+      {showResignModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)] p-6 max-w-sm w-full text-center border border-slate-800 relative overflow-hidden">
+            <h3 className="text-xl font-bold text-white mb-2">Resign Match?</h3>
+            <p className="text-slate-400 text-sm mb-6">Your opponent will be declared the winner.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowResignModal(false)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl border border-slate-700 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResign}
+                className="flex-1 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-red-400 font-bold py-2.5 rounded-xl transition-all text-sm shadow-[0_0_15px_rgba(239,68,68,0.15)]"
+              >
+                Resign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Winner Modal */}
       {showWinnerModal && (
@@ -407,8 +479,8 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
             <h2 className="text-3xl font-extrabold text-white mb-2 tracking-tight">Game Over</h2>
             <div className="text-lg text-cyan-400 mb-8 font-mono font-medium tracking-wide">
               {game.winner === 'draw' 
-                ? "It's a Draw!" 
-                : `${game.winner === 'white' ? game.white_player_username : game.black_player_username} wins by ${game.winner === 'white' ? 'Checkmate' : 'Checkmate'}!`}
+                ? "It's a Draw! (Stalemate)" 
+                : `${game.winner === 'white' ? game.white_player_username : game.black_player_username} wins by ${winReason}!`}
             </div>
             
             <button

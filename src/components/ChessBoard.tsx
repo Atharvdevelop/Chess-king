@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { BoardState, ChessPiece, PieceColor, Position } from '../types/chess';
-import { positionToKey, isValidMove } from '../lib/chessLogic';
+import { BoardState, PieceColor, Position } from '../types/chess';
+import { positionToKey, isValidMove, isKingInCheck } from '../lib/chessLogic';
 
 interface ChessBoardProps {
   board: BoardState;
@@ -8,24 +8,19 @@ interface ChessBoardProps {
   playerColor: PieceColor | null;
   onMove: (from: Position, to: Position) => void;
   isActive: boolean;
+  lastMoveFrom?: Position | null;
+  lastMoveTo?: Position | null;
 }
 
-const pieceSymbols: Record<string, string> = {
-  'white-king': '♔',
-  'white-queen': '♕',
-  'white-rook': '♖',
-  'white-bishop': '♗',
-  'white-knight': '♘',
-  'white-pawn': '♙',
-  'black-king': '♚',
-  'black-queen': '♛',
-  'black-rook': '♜',
-  'black-bishop': '♝',
-  'black-knight': '♞',
-  'black-pawn': '♟',
-};
-
-export default function ChessBoard({ board, currentTurn, playerColor, onMove, isActive }: ChessBoardProps) {
+export default function ChessBoard({
+  board,
+  currentTurn,
+  playerColor,
+  onMove,
+  isActive,
+  lastMoveFrom,
+  lastMoveTo,
+}: ChessBoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
   const [validMoves, setValidMoves] = useState<Position[]>([]);
   const [draggedPiece, setDraggedPiece] = useState<Position | null>(null);
@@ -116,21 +111,19 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
     return validMoves.some(pos => pos.row === row && pos.col === col);
   };
 
-  const getPieceSymbol = (piece: ChessPiece | null) => {
-    if (!piece) return '';
-    return pieceSymbols[`${piece.color}-${piece.type}`];
-  };
-
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
+  // Check if current turn player's king is in check
+  const inCheck = isKingInCheck(board, currentTurn);
+
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center select-none">
       <div className="mb-4 text-center">
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-400">
           {isActive ? (
             <>
-              <span className={`font-semibold ${currentTurn === 'white' ? 'text-gray-900' : 'text-gray-700'}`}>
+              <span className={`font-semibold ${currentTurn === 'white' ? 'text-gray-100' : 'text-gray-300'}`}>
                 {currentTurn === 'white' ? 'White' : 'Black'}
               </span> to move
             </>
@@ -139,7 +132,7 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
           )}
         </div>
         {playerColor && (
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-xs text-violet-400 font-medium mt-1">
             Playing as {playerColor}
           </div>
         )}
@@ -147,10 +140,10 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
 
       <div
         ref={boardRef}
-        className="inline-flex justify-center bg-gray-800 p-2 sm:p-4 rounded-lg shadow-2xl"
+        className="inline-flex justify-center bg-slate-950 p-2 sm:p-4 rounded-lg shadow-2xl border border-slate-800"
         onDragOver={handleDragOver}
       >
-        <div className="grid grid-cols-8 grid-rows-8 gap-0 border-2 border-gray-900 rounded-[2px] overflow-hidden w-[95vw] h-[95vw] lg:w-[600px] lg:h-[600px]">
+        <div className="grid grid-cols-8 grid-rows-8 gap-0 border-2 border-slate-900 rounded-[2px] overflow-hidden w-[95vw] h-[95vw] lg:w-[600px] lg:h-[600px]">
           {Array.from({ length: 8 }, (_, vRow) =>
             Array.from({ length: 8 }, (_, vCol) => {
               const isBlack = playerColor === 'black';
@@ -163,6 +156,22 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
               const isValidMove = isValidMoveSquare(row, col);
               const isDragging = draggedPiece?.row === row && draggedPiece?.col === col;
 
+              const isKingInCheckSquare = inCheck && piece && piece.type === 'king' && piece.color === currentTurn;
+              const isLastFrom = lastMoveFrom?.row === row && lastMoveFrom?.col === col;
+              const isLastTo = lastMoveTo?.row === row && lastMoveTo?.col === col;
+
+              // Color determination
+              let squareBgColor = isLight ? '#dee3e6' : '#8ca2ad';
+              if (isSelected) {
+                squareBgColor = 'rgba(139, 92, 246, 0.55)'; // Violet selection
+              } else if (isKingInCheckSquare) {
+                squareBgColor = 'rgba(239, 68, 68, 0.55)'; // Red check
+              } else if (isLastFrom) {
+                squareBgColor = 'rgba(205, 210, 106, 0.55)'; // Last move yellow-green
+              } else if (isLastTo) {
+                squareBgColor = 'rgba(205, 210, 106, 0.75)';
+              }
+
               return (
                 <div
                   key={`${row}-${col}`}
@@ -173,36 +182,41 @@ export default function ChessBoard({ board, currentTurn, playerColor, onMove, is
                   draggable={!!piece && piece.color === playerColor && isActive}
                   className={`
                     w-full h-full flex items-center justify-center
-                    text-[10vw] lg:text-[60px] cursor-pointer relative
+                    cursor-pointer relative
                     transition-all duration-150
                     ${isDragging ? 'opacity-50' : ''}
                     ${piece && piece.color === playerColor && isActive ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                    ${!isActive || !playerColor || currentTurn !== playerColor ? 'opacity-75' : 'hover:brightness-95'}
+                    ${!isActive || !playerColor || currentTurn !== playerColor ? 'opacity-90' : 'hover:brightness-95'}
                   `}
                   style={{
-                    backgroundColor: isSelected ? 'rgba(255, 255, 0, 0.5)' : isLight ? '#dee3e6' : '#8ca2ad'
+                    backgroundColor: squareBgColor
                   }}
                 >
                   {vCol === 0 && (
-                    <div className="absolute left-1 top-1 text-xs font-semibold"
+                    <div className="absolute left-1.5 top-1 text-[10px] font-bold"
                          style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
                       {ranks[row]}
                     </div>
                   )}
                   {vRow === 7 && (
-                    <div className="absolute right-1 bottom-1 text-xs font-semibold"
+                    <div className="absolute right-1.5 bottom-1 text-[10px] font-bold"
                          style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
                       {files[col]}
                     </div>
                   )}
-                  <span className={`select-none ${piece?.color === 'white' ? 'drop-shadow-md' : ''} ${isDragging ? 'opacity-30' : ''}`}>
-                    {getPieceSymbol(piece)}
-                  </span>
+                  {piece && (
+                    <img
+                      src={`/assets/pieces/${piece.color === 'white' ? 'w' : 'b'}_${piece.type}.svg`}
+                      alt={`${piece.color} ${piece.type}`}
+                      draggable={false}
+                      className={`w-[84%] h-[84%] object-contain select-none pointer-events-none drop-shadow-[0_3px_5px_rgba(0,0,0,0.45)] z-10 transition-transform ${isDragging ? 'opacity-30' : ''}`}
+                    />
+                  )}
                   {isValidMove && !piece && (
-                    <div className="absolute w-4 h-4 bg-green-500 rounded-full"></div>
+                    <div className="absolute w-3.5 h-3.5 bg-slate-900/35 rounded-full pointer-events-none z-20"></div>
                   )}
                   {isValidMove && piece && (
-                    <div className="absolute inset-0 border-4 border-red-500 pointer-events-none"></div>
+                    <div className="absolute inset-0 border-4 border-slate-900/30 pointer-events-none z-20"></div>
                   )}
                 </div>
               );

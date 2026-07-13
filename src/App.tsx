@@ -18,7 +18,7 @@ type AppView =
   | { screen: 'loading' };
 
 // ─── URL → initial view ───────────────────────────────────────────────────────
-function resolveInitialView(): AppView {
+function resolveInitialView(hasPlayer: boolean = false): AppView {
   const path = window.location.pathname;
   if (path.startsWith('/game/')) {
     const id = path.split('/')[2];
@@ -28,7 +28,7 @@ function resolveInitialView(): AppView {
     const username = path.split('/')[2];
     if (username) return { screen: 'profile', username: decodeURIComponent(username) };
   }
-  return { screen: 'loading' };
+  return hasPlayer ? { screen: 'lobby' } : { screen: 'loading' };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -36,9 +36,18 @@ function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [player, setPlayer] = useState<Player | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
-  const [view, setView] = useState<AppView>(resolveInitialView);
+  const [view, setView] = useState<AppView>(() => resolveInitialView(false));
   const [bootstrapping, setBootstrapping] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // ── 0. Listen for back/forward browser history actions ─────────────────────
+  useEffect(() => {
+    const handlePopState = () => {
+      setView(resolveInitialView(!!player));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [player]);
 
   // ── 1. Session bootstrap ───────────────────────────────────────────────────
   useEffect(() => {
