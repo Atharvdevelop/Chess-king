@@ -139,7 +139,7 @@ export default function ProfileView({
   // ── Loading / Error ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
           <p className="text-slate-500 font-mono text-sm tracking-widest uppercase">
@@ -152,7 +152,7 @@ export default function ProfileView({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0B0F19] flex flex-col items-center justify-center gap-4 p-4">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 p-4">
         <p className="text-rose-400 font-mono">{error}</p>
         <button onClick={onBackToLobby} className="neon-back-btn">
           <ArrowLeft size={15} /> BACK TO LOBBY
@@ -163,7 +163,7 @@ export default function ProfileView({
 
   // ── Main Render ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-slate-100 p-4 lg:p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-8">
 
       {/* Ambient grid overlay */}
       <div
@@ -214,7 +214,7 @@ export default function ProfileView({
               </div>
               {isOwn && (
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full
-                  border-2 border-[#0B0F19] shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                  border-2 border-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
               )}
             </div>
 

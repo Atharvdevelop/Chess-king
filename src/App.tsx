@@ -8,6 +8,7 @@ import GameView from './components/GameView';
 import AuthView from './components/AuthView';
 import ProfileView from './components/ProfileView';
 import SocialSidebar from './components/SocialSidebar';
+import ChallengeView from './components/ChallengeView';
 
 // ─── App-level view type ──────────────────────────────────────────────────────
 type AppView =
@@ -15,6 +16,7 @@ type AppView =
   | { screen: 'lobby' }
   | { screen: 'game'; gameId: string }
   | { screen: 'profile'; username: string }
+  | { screen: 'challenge'; mode?: 'open' | 'direct'; targetUser?: string }
   | { screen: 'loading' };
 
 // ─── URL → initial view ───────────────────────────────────────────────────────
@@ -27,6 +29,12 @@ function resolveInitialView(hasPlayer: boolean = false): AppView {
   if (path.startsWith('/profile/')) {
     const username = path.split('/')[2];
     if (username) return { screen: 'profile', username: decodeURIComponent(username) };
+  }
+  if (path === '/challenge') {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode') as 'open' | 'direct' | undefined;
+    const targetUser = params.get('u') || undefined;
+    return { screen: 'challenge', mode, targetUser };
   }
   return hasPlayer ? { screen: 'lobby' } : { screen: 'loading' };
 }
@@ -125,7 +133,7 @@ function App() {
       if (prev.screen === 'loading' || prev.screen === 'auth') {
         return { screen: 'lobby' };
       }
-      return prev; // preserve /game/:id or /profile/:username deep-links
+      return prev; // preserve deep-links
     });
   }, [bootstrapping, loadingProfile, player]);
 
@@ -158,7 +166,17 @@ function App() {
     navigate(`/profile/${encodeURIComponent(username)}`, { screen: 'profile', username });
   };
 
-  // "Analyze Game" from ProfileView → route into GameView (finished game = analysis mode)
+  const handleCreateChallenge = (mode?: 'open' | 'direct', targetUser?: string) => {
+    let url = '/challenge';
+    const params = new URLSearchParams();
+    if (mode) params.set('mode', mode);
+    if (targetUser) params.set('u', targetUser);
+    const queryStr = params.toString();
+    if (queryStr) url += `?${queryStr}`;
+    
+    navigate(url, { screen: 'challenge', mode, targetUser });
+  };
+
   const handleAnalyzeGame = (gameId: string) => {
     navigate(`/game/${gameId}`, { screen: 'game', gameId });
   };
@@ -166,9 +184,9 @@ function App() {
   // ── 5. Render ─────────────────────────────────────────────────────────────
   if (bootstrapping || loadingProfile || view.screen === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-violet-500 border-t-cyan-400 rounded-full animate-spin shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
+          <div className="w-12 h-12 border-4 border-violet-500 border-t-cyan-400 rounded-full animate-spin shadow-[0_0_15px_rgba(139,92,246,0.3)]" />
           <p className="text-violet-300 animate-pulse text-sm font-medium tracking-widest uppercase">Initializing</p>
         </div>
       </div>
@@ -200,15 +218,29 @@ function App() {
     );
   }
 
+  if (view.screen === 'challenge') {
+    return (
+      <ChallengeView
+        initialMode={view.mode}
+        initialTargetUser={view.targetUser}
+        currentPlayer={player}
+        profileId={profileId ?? player.id}
+        onBackToLobby={handleBackToLobby}
+        onGameStart={handleGameStart}
+      />
+    );
+  }
+
   // Default: lobby  — wrap in flex row so sidebar sits next to content
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-slate-950 text-slate-100">
       <div className="flex-1 overflow-hidden">
         <GameLobby
           player={player}
           profileId={profileId ?? player.id}
           onGameStart={handleGameStart}
           onViewProfile={handleViewProfile}
+          onCreateChallenge={handleCreateChallenge}
         />
       </div>
       {profileId && (

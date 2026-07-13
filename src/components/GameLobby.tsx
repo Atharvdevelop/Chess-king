@@ -1,85 +1,85 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Player, Challenge } from '../types/chess';
 import {
   getLobbyPlayers,
   getPendingChallenges,
-  createChallenge,
   acceptChallenge,
   rejectChallenge,
   subscribeToChallenges,
   subscribeToChallengeAccepted,
   updateHeartbeat,
-  getAllMembers,
   getActiveMatches
-} from '../lib/gameService'; // FIXED: Singular to match your file
+} from '../lib/gameService';
 import { supabase } from '../lib/supabase';
-import { Users, MessageCircle, Check, X, Eye, Activity, Globe } from 'lucide-react';
+import { Users, Check, X, Eye, Play, Plus, MessageSquare, Send } from 'lucide-react';
 
-// Added onGameStart and onViewProfile to the props
+interface GameLobbyProps {
+  player: Player;
+  profileId: string;
+  onGameStart: (id: string) => void;
+  onViewProfile: (username: string) => void;
+  onCreateChallenge: (mode?: 'open' | 'direct', targetUser?: string) => void;
+}
+
+interface ChatMessage {
+  username: string;
+  text: string;
+  timestamp: string;
+}
+
 export default function GameLobby({
   player,
   profileId,
   onGameStart,
   onViewProfile,
-}: {
-  player: Player;
-  profileId: string;   // unified auth UUID — matches games.white/black_player_id
-  onGameStart: (id: string) => void;
-  onViewProfile: (username: string) => void;
-}) {
-  // Main Navigation State
-  const [mainTab, setMainTab] = useState<'lobby' | 'members' | 'playing'>('lobby');
-  const [lobbyTab, setLobbyTab] = useState<'challenge' | 'pending'>('challenge');
-
+  onCreateChallenge,
+}: GameLobbyProps) {
   // Data States
-  const [lobbyPlayers, setLobbyPlayers] = useState<Player[]>([]);
-  const [members, setMembers] = useState<Player[]>([]);
+  const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
   const [activeMatches, setActiveMatches] = useState<{ game_id: string; white_player: string; black_player: string; status?: string }[]>([]);
   const [pendingChallenges, setPendingChallenges] = useState<Challenge[]>([]);
-  
-  // Notification State for the "Accepted" popup
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Global Chat States
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [msgInput, setMsgInput] = useState('');
+  const chatChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const refreshData = async () => {
     try {
-      // Lobby view filters out busy players — pass the unified profile UUID
+      // Lobby view filters out busy players
       const players = await getLobbyPlayers(profileId);
-      setLobbyPlayers(players);
+      setOnlinePlayers(players);
 
       const challenges = await getPendingChallenges(profileId);
       setPendingChallenges(challenges);
 
-      if (mainTab === 'members') setMembers(await getAllMembers());
-      if (mainTab === 'playing') setActiveMatches(await getActiveMatches());
+      const matches = await getActiveMatches();
+      setActiveMatches(matches);
     } catch (err) {
-      console.error("Refresh error:", err);
+      console.error('Lobby refresh error:', err);
     }
   };
 
-  useEffect(() => {
-    refreshData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainTab]);
-
+  // ─── 1. REALTIME & HEARTBEAT SYNC ──────────────────────────────────────────
   useEffect(() => {
     refreshData();
 
-    // 1. HEARTBEAT: Keep the player 'online'
+    // Heartbeat: Keep online status refreshed
     const heartbeat = setInterval(() => updateHeartbeat(profileId), 10000);
 
-    // 2. REFRESH: Auto-update lobby every 15s to remove ghosts
+    // Refresh poller: auto-remove idle player rows
     const poller = setInterval(refreshData, 15000);
 
-    // 3. REALTIME: Listen for challenges or list refreshes
-    //    Use profileId so the filter matches challenges.challenger_id / challenged_id
+    // Sub to challenges
     const generalChannel = subscribeToChallenges(profileId, () => {
       refreshData();
     });
 
-    // 4. REALTIME (Redirect): The "Nuclear Fix" for the Challenger
+    // Nuclear Fix challenge auto-redirect
     const redirectChannel = subscribeToChallengeAccepted(profileId, (gameId, opponentName) => {
-      setNotification(`🎉 ${opponentName} accepted! Transporting to match...`);
-
+      setNotification(`🎉 Match accepted! Entering room with ${opponentName}...`);
       setTimeout(() => {
         onGameStart(gameId);
       }, 2000);
@@ -94,152 +94,306 @@ export default function GameLobby({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId]);
 
+  // ─── 2. GLOBAL LOBBY BROADCAST CHAT ────────────────────────────────────────
+  useEffect(() => {
+    const chatChannel = supabase.channel('global-lobby-chat', {
+      config: { broadcast: { self: true } }
+    });
+
+    chatChannel
+      .on('broadcast', { event: 'chat' }, (payload) => {
+        const payloadData = payload.payload as ChatMessage;
+        setChatMessages((prev) => [...prev.slice(-99), payloadData]);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          chatChannelRef.current = chatChannel;
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(chatChannel);
+      chatChannelRef.current = null;
+    };
+  }, []);
+
+  // Scroll to chat bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const sendChatMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!msgInput.trim() || !chatChannelRef.current) return;
+
+    chatChannelRef.current.send({
+      type: 'broadcast',
+      event: 'chat',
+      payload: {
+        username: player.username,
+        text: msgInput.trim(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    });
+
+    setMsgInput('');
+  };
+
   const handleAccept = async (c: Challenge) => {
     try {
-      // Pass the unified profile UUID so games.black_player_id is set correctly
       const data = await acceptChallenge(c.id, profileId, c.challenger_username || 'Opponent', player.username);
       if (data.game_id) {
         onGameStart(data.game_id);
       }
     } catch (err) {
-      console.error("Accept error:", err);
+      console.error('Accept error:', err);
+    }
+  };
+
+  const handleReject = async (c: Challenge) => {
+    try {
+      await rejectChallenge(c.id);
+      refreshData();
+    } catch (err) {
+      console.error('Decline error:', err);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 flex flex-col items-center relative">
+    <div className="min-h-screen bg-slate-950 p-4 lg:p-8 flex flex-col items-center relative antialiased text-slate-100 overflow-y-auto">
       
+      {/* Decorative radial glows */}
+      <div className="absolute top-0 left-0 w-80 h-80 bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute bottom-0 right-0 w-80 h-80 bg-cyan-600/5 rounded-full blur-3xl pointer-events-none"></div>
+
       {notification && (
-        <div className="absolute top-10 right-10 bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 animate-bounce z-50 border-2 border-white">
-          <Check className="w-6 h-6" />
-          <span className="font-bold text-lg">{notification}</span>
+        <div className="fixed top-6 right-6 bg-emerald-600/90 border border-emerald-500/50 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce z-50">
+          <Check className="w-5 h-5" />
+          <span className="font-bold text-sm">{notification}</span>
         </div>
       )}
 
-      <h1 className="text-4xl font-bold text-white mb-8 mt-4 tracking-wider">CHESS-KING</h1>
-      
-      <div className="w-full max-w-3xl bg-white rounded-xl shadow-2xl overflow-hidden">
-        
-        <div className="flex bg-slate-800 text-slate-300">
-          <button 
-            onClick={() => setMainTab('lobby')} 
-            className={`flex-1 p-4 flex items-center justify-center gap-2 transition-colors ${mainTab === 'lobby' ? 'bg-blue-600 text-white font-bold' : 'hover:bg-slate-700'}`}
-          >
-            <Users className="w-5 h-5" /> Lobby
-          </button>
-          <button 
-            onClick={() => setMainTab('members')} 
-            className={`flex-1 p-4 flex items-center justify-center gap-2 transition-colors ${mainTab === 'members' ? 'bg-blue-600 text-white font-bold' : 'hover:bg-slate-700'}`}
-          >
-            <Globe className="w-5 h-5" /> Members
-          </button>
-          <button 
-            onClick={() => setMainTab('playing')} 
-            className={`flex-1 p-4 flex items-center justify-center gap-2 transition-colors ${mainTab === 'playing' ? 'bg-blue-600 text-white font-bold' : 'hover:bg-slate-700'}`}
-          >
-            <Activity className="w-5 h-5" /> Playing
-          </button>
+      {/* Header */}
+      <div className="w-full max-w-6xl flex justify-between items-center mb-8 mt-2 z-10">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-white">
+            Chess <span className="bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">King</span>
+          </h1>
+          <p className="text-slate-400 text-xs mt-1">Play real-time chess matches on a premium platform.</p>
         </div>
+        <div 
+          onClick={() => onViewProfile(player.username)} 
+          className="flex items-center gap-3 cursor-pointer group bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 transition-all duration-200"
+        >
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-sm font-bold text-white uppercase shadow-md shadow-violet-600/10">
+            {player.username.charAt(0)}
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white group-hover:text-violet-400 transition-colors">@{player.username}</div>
+            <div className="text-[10px] text-slate-500">View Profile</div>
+          </div>
+        </div>
+      </div>
 
-        <div className="p-6 min-h-[400px]">
+      {/* Two-Column Dashboard */}
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6 z-10 items-start">
+        
+        {/* LEFT COLUMN: Matchmaking CTA Cards, Pending Invites, Spectating list */}
+        <div className="lg:col-span-2 space-y-6">
           
-          {mainTab === 'lobby' && (
-            <div>
-              <div className="flex border-b mb-4">
-                <button onClick={() => setLobbyTab('challenge')} className={`flex-1 pb-3 ${lobbyTab === 'challenge' ? 'border-b-4 border-blue-600 font-bold text-blue-600' : 'text-gray-500'}`}>
-                  Online
-                </button>
-                <button onClick={() => setLobbyTab('pending')} className={`flex-1 pb-3 relative ${lobbyTab === 'pending' ? 'border-b-4 border-blue-600 font-bold text-blue-600' : 'text-gray-500'}`}>
-                  Requests
-                  {pendingChallenges.length > 0 && (
-                    <span className="absolute top-0 right-4 bg-red-500 text-white text-xs px-2 py-1 rounded-full">{pendingChallenges.length}</span>
-                  )}
-                </button>
-              </div>
+          {/* Quick Match Cards Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            {/* Quick Play Card */}
+            <div className="relative group overflow-hidden bg-slate-900/60 border border-slate-800/80 hover:border-violet-500/40 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-xl">
+              <div className="absolute -right-8 -top-8 w-24 h-24 bg-violet-600/10 rounded-full blur-xl group-hover:bg-violet-600/20 transition-all"></div>
+              <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
+                <Play className="w-5 h-5 text-violet-400" />
+                Quick Play
+              </h3>
+              <p className="text-slate-400 text-xs leading-relaxed mb-6">
+                Queue up to match with an active opponent instantly. Choose standard time increments or custom formats.
+              </p>
+              <button
+                onClick={() => onCreateChallenge('open')}
+                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all duration-300 shadow-md shadow-violet-600/10 text-xs flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                <Plus size={14} />
+                <span>Play Quick Match</span>
+              </button>
+            </div>
 
-              {lobbyTab === 'challenge' ? (
-                <div className="space-y-3">
-                  {lobbyPlayers.length === 0 && <p className="text-center text-gray-400 mt-10 italic">No free players online.</p>}
-                  {lobbyPlayers.map(p => (
-                    <div key={p.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="font-bold text-slate-700 text-lg">{p.username}</span>
-                      </div>
-                      <button onClick={() => createChallenge(profileId, p.id)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md transition flex items-center gap-2 shadow-sm">
-                        <MessageCircle className="w-4 h-4"/> Challenge
+            {/* Challenge Friend Card */}
+            <div className="relative group overflow-hidden bg-slate-900/60 border border-slate-800/80 hover:border-cyan-500/40 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-xl">
+              <div className="absolute -right-8 -top-8 w-24 h-24 bg-cyan-600/10 rounded-full blur-xl group-hover:bg-cyan-600/20 transition-all"></div>
+              <h3 className="text-lg font-bold text-white mb-1.5 flex items-center gap-2">
+                <Users className="w-5 h-5 text-cyan-400" />
+                Challenge Friend
+              </h3>
+              <p className="text-slate-400 text-xs leading-relaxed mb-6">
+                Type in a player's handle directly. Best suited for private games, custom controls, and friendly matches.
+              </p>
+              <button
+                onClick={() => onCreateChallenge('direct')}
+                className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all duration-300 shadow-md shadow-cyan-600/10 text-xs flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                <Send size={12} />
+                <span>Invite Player</span>
+              </button>
+            </div>
+
+          </div>
+
+          {/* Pending Invitations list */}
+          {pendingChallenges.length > 0 && (
+            <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-5 shadow-xl">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                Match Invitations
+              </h3>
+              <div className="space-y-3">
+                {pendingChallenges.map((c) => (
+                  <div key={c.id} className="flex justify-between items-center p-3.5 bg-slate-950/50 border border-slate-850 rounded-xl">
+                    <span className="text-sm font-medium text-slate-200">
+                      Challenge from <strong className="text-white">@{c.challenger_username}</strong>
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAccept(c)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-1 shadow-lg shadow-emerald-950/20"
+                      >
+                        <Check size={14} /> Accept
+                      </button>
+                      <button
+                        onClick={() => handleReject(c)}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded-lg transition-colors flex items-center gap-1 border border-slate-750"
+                      >
+                        <X size={14} /> Decline
                       </button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {pendingChallenges.length === 0 && <p className="text-center text-gray-400 mt-10 italic">No incoming challenges.</p>}
-                  {pendingChallenges.map(c => (
-                    <div key={c.id} className="flex justify-between items-center p-4 bg-amber-50 rounded-lg border border-amber-300">
-                      <span><strong className="text-lg">{c.challenger_username}</strong> challenges you!</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleAccept(c)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-2 shadow-sm">
-                          <Check className="w-4 h-4"/> Accept
-                        </button>
-                        <button onClick={() => rejectChallenge(c.id)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2 shadow-sm">
-                          <X className="w-4 h-4"/> Decline
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {mainTab === 'members' && (
-            <div className="space-y-3">
-              <h2 className="text-2xl font-bold text-slate-800 mb-4">Total Members</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {members.map(m => (
-                  <div key={m.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <Users className="text-slate-400 w-5 h-5" />
-                      <span className="font-semibold text-slate-700">{m.username}</span>
-                      {m.status === 'busy' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded">In Game</span>}
-                    </div>
-                    <button
-                      onClick={() => onViewProfile(m.username)}
-                      className="text-xs text-blue-600 hover:text-blue-800 font-semibold transition-colors shrink-0"
-                    >
-                      Profile →
-                    </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {mainTab === 'playing' && (
+          {/* Ongoing Battles spectate queue */}
+          <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-5 shadow-xl">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
+              Ongoing Battles
+            </h3>
             <div className="space-y-3">
-              <h2 className="text-2xl font-bold text-slate-800 mb-4">Live Matches</h2>
-              {activeMatches.length === 0 && <p className="text-center text-gray-400 mt-10 italic">No matches in progress.</p>}
-              {activeMatches.map(m => (
-                <div key={m.game_id} className="flex justify-between items-center p-5 bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg text-white shadow-lg border border-slate-600">
-                  <div className="flex items-center gap-4 text-lg">
-                    <span className="font-bold text-blue-300">{m.white_player}</span> 
-                    <span className="text-slate-400 text-sm">vs</span> 
-                    <span className="font-bold text-red-300">{m.black_player}</span>
+              {activeMatches.length === 0 ? (
+                <p className="text-slate-500 text-xs italic py-4 text-center font-mono">No live chess battles in progress.</p>
+              ) : (
+                activeMatches.map((m) => (
+                  <div key={m.game_id} className="flex justify-between items-center p-3.5 bg-slate-950/50 border border-slate-850 rounded-xl transition-all hover:bg-slate-950/80">
+                    <div className="flex items-center gap-3">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                      <div className="text-xs font-medium text-slate-300">
+                        <strong className="text-white text-sm">@{m.white_player}</strong>
+                        <span className="mx-2 text-slate-500 font-bold">vs</span>
+                        <strong className="text-white text-sm">@{m.black_player}</strong>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onGameStart(m.game_id)}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Eye size={14} className="text-cyan-400" />
+                      Spectate
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => window.location.href = `/game/${m.game_id}?mode=spectate`}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-md transition flex items-center gap-2 shadow-md"
-                  >
-                    <Eye className="w-4 h-4" /> Spectate
-                  </button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
+          </div>
 
         </div>
+
+        {/* RIGHT COLUMN: Online Players Sidebar & Global Chat */}
+        <div className="space-y-6">
+          
+          {/* Online Players */}
+          <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-5 shadow-xl flex flex-col h-[300px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex justify-between items-center">
+              <span>Online Players</span>
+              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                {onlinePlayers.length} Active
+              </span>
+            </h3>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+              {onlinePlayers.length === 0 ? (
+                <p className="text-slate-600 text-xs italic text-center py-12 font-mono">No other players online.</p>
+              ) : (
+                onlinePlayers.map((p) => (
+                  <div key={p.id} className="flex justify-between items-center p-2.5 bg-slate-950/30 hover:bg-slate-950/60 rounded-xl border border-slate-850/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs font-bold text-slate-200">@{p.username}</span>
+                    </div>
+                    <button
+                      onClick={() => onCreateChallenge('direct', p.username)}
+                      className="text-[10px] font-bold text-violet-400 hover:text-white border border-violet-500/30 hover:bg-violet-600/30 px-2.5 py-1.5 rounded-lg transition-all"
+                    >
+                      Challenge
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Global Chat Widget */}
+          <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-5 shadow-xl flex flex-col h-[340px]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-1.5">
+              <MessageSquare size={14} className="text-violet-400" />
+              Lobby Chat Room
+            </h3>
+
+            {/* Scrollable messages container */}
+            <div className="flex-1 overflow-y-auto space-y-3 p-3 bg-slate-950/40 rounded-xl border border-slate-850/50 mb-3 custom-scrollbar">
+              {chatMessages.length === 0 ? (
+                <div className="text-center text-slate-600 text-xs py-12 font-mono italic">
+                  No messages yet.<br />Say hello to the lobby!
+                </div>
+              ) : (
+                chatMessages.map((msg, i) => (
+                  <div key={i} className="text-xs flex flex-col">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-bold text-violet-400">@{msg.username}</span>
+                      <span className="text-[9px] text-slate-600 font-mono">{msg.timestamp}</span>
+                    </div>
+                    <p className="text-slate-300 mt-0.5 leading-relaxed break-all select-text">{msg.text}</p>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Chat Input form */}
+            <form onSubmit={sendChatMessage} className="flex gap-2">
+              <input
+                type="text"
+                value={msgInput}
+                onChange={(e) => setMsgInput(e.target.value)}
+                placeholder="Send message to lobby..."
+                className="flex-1 bg-slate-950/60 border border-slate-850 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-600 outline-none focus:border-violet-500 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={!msgInput.trim()}
+                className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2.5 rounded-xl transition-all shadow-md shadow-violet-600/10 active:scale-95"
+              >
+                <Send size={12} />
+              </button>
+            </form>
+          </div>
+
+        </div>
+
       </div>
+
     </div>
   );
 }
