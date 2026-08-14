@@ -283,6 +283,7 @@ function App() {
       {profileId && (
         <SocialSidebar
           currentProfileId={profileId}
+          onViewProfile={handleViewProfile}
         />
       )}
     </div>

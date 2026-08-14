@@ -32,11 +32,12 @@ interface Message {
 
 interface SocialSidebarProps {
   currentProfileId: string;   // auth UUID from profiles table
+  onViewProfile?: (username: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) {
+export default function SocialSidebar({ currentProfileId, onViewProfile }: SocialSidebarProps) {
   const [tab, setTab] = useState<'players' | 'friends'>('players');
 
   // All players (excluding self)
@@ -347,9 +348,12 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
                 {allPlayers.map(p => {
                   const rel = getRelationship(p.id);
                   return (
-                    <li key={p.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-900/40 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-200 truncate">{p.username}</p>
+                    <li key={p.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-900/40 transition-colors group">
+                      <div
+                        className="min-w-0 flex-1 cursor-pointer"
+                        onClick={() => onViewProfile?.(p.username)}
+                      >
+                        <p className="text-sm font-semibold text-slate-200 truncate group-hover:text-cyan-400 transition-colors">{p.username}</p>
                         {p.full_name && (
                           <p className="text-[10px] text-slate-600 font-mono truncate">{p.full_name}</p>
                         )}
@@ -357,7 +361,7 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
 
                       {rel === 'none' && (
                         <button
-                          onClick={() => sendFriendRequest(p.id)}
+                          onClick={(e) => { e.stopPropagation(); sendFriendRequest(p.id); }}
                           className="flex items-center gap-1 px-2.5 py-1 rounded-md shrink-0 ml-2
                             text-[10px] font-mono font-bold text-cyan-400 border border-cyan-500/30
                             bg-cyan-500/5 hover:bg-cyan-500/20 hover:border-cyan-400/60
@@ -375,7 +379,7 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
                       )}
                       {rel === 'accepted' && (
                         <button
-                          onClick={() => openChat(p)}
+                          onClick={(e) => { e.stopPropagation(); openChat(p); }}
                           className="flex items-center gap-1 px-2.5 py-1 rounded-md shrink-0 ml-2
                             text-[10px] font-mono font-bold text-emerald-400 border border-emerald-500/30
                             bg-emerald-500/5 hover:bg-emerald-500/20
@@ -454,15 +458,18 @@ export default function SocialSidebar({ currentProfileId }: SocialSidebarProps) 
                     <ul className="divide-y divide-slate-800/50">
                       {friends.map(f => (
                         <li key={f.id}
-                          className="flex items-center justify-between py-3 hover:bg-slate-900/30 transition-colors rounded-lg px-1">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-200 truncate">{f.username}</p>
+                          className="flex items-center justify-between py-3 hover:bg-slate-900/30 transition-colors rounded-lg px-1 group">
+                          <div
+                            className="min-w-0 flex-1 cursor-pointer"
+                            onClick={() => onViewProfile?.(f.username)}
+                          >
+                            <p className="text-sm font-semibold text-slate-200 truncate group-hover:text-cyan-400 transition-colors">{f.username}</p>
                             {f.full_name && (
                               <p className="text-[10px] text-slate-600 font-mono truncate">{f.full_name}</p>
                             )}
                           </div>
                           <button
-                            onClick={() => openChat(f)}
+                            onClick={(e) => { e.stopPropagation(); openChat(f); }}
                             className="flex items-center gap-1 px-2.5 py-1 rounded-md shrink-0 ml-2
                               text-[10px] font-mono font-bold text-cyan-400 border border-cyan-500/30
                               bg-cyan-500/5 hover:bg-cyan-500/20
