@@ -6,7 +6,8 @@ declare const Deno: {
   serve(handler: (req: Request) => Promise<Response>): void;
 };
 
-import { createClient } from '@supabase/supabase-js';
+// @ts-ignore - URL import resolved by Deno/Supabase at runtime
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
