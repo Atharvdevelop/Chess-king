@@ -184,6 +184,10 @@ function App() {
     navigate(`/game/${gameId}`, { screen: 'game', gameId });
   };
 
+  const handleOpenAdmin = () => {
+    navigate('/admin', { screen: 'admin' });
+  };
+
   // ── 5. Render ─────────────────────────────────────────────────────────────
   if (bootstrapping || loadingProfile || view.screen === 'loading') {
     return (
@@ -248,6 +252,7 @@ function App() {
           onGameStart={handleGameStart}
           onViewProfile={handleViewProfile}
           onCreateChallenge={handleCreateChallenge}
+          onOpenAdmin={handleOpenAdmin}
         />
       </div>
       {profileId && (

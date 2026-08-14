@@ -152,14 +152,19 @@ export default function ChallengeView({
       if (opErr) throw opErr;
       if (!opponentPlayer) throw new Error(`Player "${target}" not found. They may not have logged in yet.`);
 
-      // 2. Insert into challenges table (correct approach — avoids missing
-      //    time_format column on games and keeps data model consistent)
+      let timeFormat = selectedFormat;
+      if (timeFormat === 'custom') {
+        timeFormat = `${customMinutes}+${customIncrement}`;
+      }
+
+      // 2. Insert into challenges table
       const { data: challenge, error: chalErr } = await supabase
         .from('challenges')
         .insert({
           challenger_id: profileId,
           challenged_id: opponentPlayer.id,
           status: 'pending',
+          time_format: timeFormat,
         })
         .select('id')
         .single();

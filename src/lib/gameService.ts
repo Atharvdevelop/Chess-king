@@ -139,11 +139,15 @@ export async function acceptChallenge(
 
   const { data: challengeData } = await supabase
     .from('challenges')
-    .select('challenger_id')
+    .select('challenger_id, time_format')
     .eq('id', challengeId)
     .single();
 
   if (!challengeData) throw new Error("Challenge not found");
+
+  const timeFormat = (challengeData as Record<string, any>)?.time_format || '10+0';
+  const minutes = parseInt(timeFormat.split('+')[0], 10) || 10;
+  const initialSeconds = minutes * 60;
 
   const { data: gameData, error: gameError } = await supabase
     .from('games')
@@ -154,7 +158,11 @@ export async function acceptChallenge(
       current_turn: 'white',
       status: 'active',
       white_player_username: challengerUsername,
-      black_player_username: playerUsername
+      black_player_username: playerUsername,
+      time_format: timeFormat,
+      time_limit: initialSeconds,
+      white_time_remaining: initialSeconds,
+      black_time_remaining: initialSeconds,
     })
     .select()
     .single();

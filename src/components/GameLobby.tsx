@@ -11,7 +11,7 @@ import {
   getActiveMatches
 } from '../lib/gameService';
 import { supabase } from '../lib/supabase';
-import { Users, Check, X, Eye, Play, Plus, MessageSquare, Send } from 'lucide-react';
+import { Users, Check, X, Eye, Play, Plus, MessageSquare, Send, Shield } from 'lucide-react';
 
 interface GameLobbyProps {
   player: Player;
@@ -19,6 +19,7 @@ interface GameLobbyProps {
   onGameStart: (id: string) => void;
   onViewProfile: (username: string) => void;
   onCreateChallenge: (mode?: 'open' | 'direct', targetUser?: string) => void;
+  onOpenAdmin?: () => void;
 }
 
 interface ChatMessage {
@@ -33,6 +34,7 @@ export default function GameLobby({
   onGameStart,
   onViewProfile,
   onCreateChallenge,
+  onOpenAdmin,
 }: GameLobbyProps) {
   // Data States
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
@@ -181,16 +183,28 @@ export default function GameLobby({
           </h1>
           <p className="text-slate-400 text-xs mt-1">Play real-time chess matches on a premium platform.</p>
         </div>
-        <div 
-          onClick={() => onViewProfile(player.username)} 
-          className="flex items-center gap-3 cursor-pointer group bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 transition-all duration-200"
-        >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-sm font-bold text-white uppercase shadow-md shadow-violet-600/10">
-            {player.username.charAt(0)}
-          </div>
-          <div>
-            <div className="text-xs font-bold text-white group-hover:text-violet-400 transition-colors">@{player.username}</div>
-            <div className="text-[10px] text-slate-500">View Profile</div>
+        <div className="flex items-center gap-3">
+          {onOpenAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              className="flex items-center gap-2 bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 hover:border-violet-500/50 rounded-xl px-3.5 py-2.5 transition-all duration-200 text-slate-300 hover:text-white group"
+              title="Admin Panel"
+            >
+              <Shield size={16} className="text-violet-400 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-semibold hidden sm:inline">Admin</span>
+            </button>
+          )}
+          <div 
+            onClick={() => onViewProfile(player.username)} 
+            className="flex items-center gap-3 cursor-pointer group bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 transition-all duration-200"
+          >
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-sm font-bold text-white uppercase shadow-md shadow-violet-600/10">
+              {player.username.charAt(0)}
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white group-hover:text-violet-400 transition-colors">@{player.username}</div>
+              <div className="text-[10px] text-slate-500">View Profile</div>
+            </div>
           </div>
         </div>
       </div>

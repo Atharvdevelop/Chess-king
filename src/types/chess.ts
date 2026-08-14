@@ -42,6 +42,7 @@ export interface Game {
   last_move_at: string;
   white_player_username?: string;
   black_player_username?: string;
+  time_format?: string;
 }
 
 export interface Move {
@@ -69,4 +70,5 @@ export interface Challenge {
   created_at: string;
   updated_at: string;
   challenger_username?: string;
+  time_format?: string;
 }

@@ -98,15 +98,32 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
   const loadGame = async () => {
     const gameData = await getGame(gameId);
     if (gameData) {
-      setGame(gameData);
+      let wt = gameData.white_time_remaining;
+      let bt = gameData.black_time_remaining;
+      
+      // Fallback: if columns were defaulting to 600 but time_format specifies e.g. "1+0" or "3+2"
+      if (gameData.time_format && gameData.time_format !== '10+0') {
+        const mins = parseInt(gameData.time_format.split('+')[0], 10);
+        if (!isNaN(mins) && mins > 0) {
+          const parsedSecs = mins * 60;
+          if (wt === 600 || wt == null) wt = parsedSecs;
+          if (bt === 600 || bt == null) bt = parsedSecs;
+        }
+      }
+
+      wt = wt ?? 600;
+      bt = bt ?? 600;
+
+      const normalizedGame = { ...gameData, white_time_remaining: wt, black_time_remaining: bt };
+      setGame(normalizedGame);
       // Re-anchor snapshot so the local timer stays in sync with the DB.
       timerStartedAt.current = Date.now();
-      whiteTimeSnapshot.current = gameData.white_time_remaining;
-      blackTimeSnapshot.current = gameData.black_time_remaining;
+      whiteTimeSnapshot.current = wt;
+      blackTimeSnapshot.current = bt;
       activeColorSnapshot.current = gameData.current_turn;
 
-      setWhiteTime(gameData.white_time_remaining);
-      setBlackTime(gameData.black_time_remaining);
+      setWhiteTime(wt);
+      setBlackTime(bt);
 
       if (gameData.white_player_id === profileId) {
         setPlayerColor('white');
