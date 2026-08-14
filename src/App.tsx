@@ -9,6 +9,7 @@ import AuthView from './components/AuthView';
 import ProfileView from './components/ProfileView';
 import SocialSidebar from './components/SocialSidebar';
 import ChallengeView from './components/ChallengeView';
+import AdminPanel from './components/AdminPanel';
 
 // ─── App-level view type ──────────────────────────────────────────────────────
 type AppView =
@@ -17,6 +18,7 @@ type AppView =
   | { screen: 'game'; gameId: string }
   | { screen: 'profile'; username: string }
   | { screen: 'challenge'; mode?: 'open' | 'direct'; targetUser?: string }
+  | { screen: 'admin' }
   | { screen: 'loading' };
 
 // ─── URL → initial view ───────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ function resolveInitialView(hasPlayer: boolean = false): AppView {
     const targetUser = params.get('u') || undefined;
     return { screen: 'challenge', mode, targetUser };
   }
+  if (path === '/admin') return { screen: 'admin' };
   return hasPlayer ? { screen: 'lobby' } : { screen: 'loading' };
 }
 
@@ -229,6 +232,10 @@ function App() {
         onGameStart={handleGameStart}
       />
     );
+  }
+
+  if (view.screen === 'admin') {
+    return <AdminPanel onBack={handleBackToLobby} />;
   }
 
   // Default: lobby  — wrap in flex row so sidebar sits next to content
