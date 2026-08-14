@@ -20,6 +20,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
   const [showWinnerModal, setShowWinnerModal] = useState<boolean>(false);
   const [showResignModal, setShowResignModal] = useState<boolean>(false);
   const [copied, setCopied] = useState(false);
+
   const [whiteTime, setWhiteTime] = useState(600);
   const [blackTime, setBlackTime] = useState(600);
   const [isMoving, setIsMoving] = useState(false);

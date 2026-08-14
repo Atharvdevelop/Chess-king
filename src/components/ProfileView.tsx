@@ -4,13 +4,15 @@ import { Player } from '../types/chess';
 import {
   ArrowLeft, Trophy, Swords, TrendingUp,
   CalendarDays, ChevronRight, Loader2,
-  Zap, Shield, Target, LogOut
+  Zap, Target, LogOut, Edit3, Check, X, AlertTriangle, Flag
 } from 'lucide-react';
 
 interface Profile {
   id: string;
   username: string;
   full_name: string | null;
+  bio?: string | null;
+  rating?: number | null;
   created_at: string;
 }
 
@@ -61,6 +63,18 @@ export default function ProfileView({
   const [error, setError] = useState('');
   const [signingOut, setSigningOut] = useState(false);
 
+  // Bio state
+  const [bioText, setBioText] = useState('');
+  const [isEditingBio, setIsEditingBio] = useState(false);
+  const [savingBio, setSavingBio] = useState(false);
+
+  // Report Modal state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('Cheating / Engine');
+  const [reportDetails, setReportDetails] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+
   const isOwn = currentPlayer.username === targetUsername;
 
   useEffect(() => {
@@ -72,7 +86,7 @@ export default function ProfileView({
       try {
         const { data: prof, error: pErr } = await supabase
           .from('profiles')
-          .select('id, username, full_name, created_at')
+          .select('id, username, full_name, bio, rating, created_at')
           .eq('username', targetUsername)
           .single();
 
@@ -80,7 +94,10 @@ export default function ProfileView({
           if (!cancelled) setError(`Profile "${targetUsername}" not found.`);
           return;
         }
-        if (!cancelled) setProfile(prof);
+        if (!cancelled) {
+          setProfile(prof);
+          setBioText(prof.bio || '');
+        }
 
         const { data: games, error: gErr } = await supabase
           .from('games')
@@ -119,10 +136,6 @@ export default function ProfileView({
     return { played, wins, losses, draws, winRate: played > 0 ? Math.round((wins / played) * 100) : 0 };
   })();
 
-  const winPercent = stats.played > 0 ? Math.round((stats.wins / stats.played) * 100) : 0;
-  const drawPercent = stats.played > 0 ? Math.round((stats.draws / stats.played) * 100) : 0;
-  const lossPercent = stats.played > 0 ? Math.max(0, 100 - winPercent - drawPercent) : 0;
-
   function getResult(m: MatchRow): Result {
     if (!profile) return 'DRAW';
     const myColor = m.white_player_id === profile.id ? 'white' : 'black';
@@ -130,6 +143,42 @@ export default function ProfileView({
     if (m.winner === myColor) return 'WIN';
     return 'LOSS';
   }
+
+  const handleSaveBio = async () => {
+    if (!profile || savingBio) return;
+    setSavingBio(true);
+    try {
+      await supabase.from('profiles').update({ bio: bioText }).eq('id', profile.id);
+      await supabase.from('players').update({ bio: bioText }).eq('id', profile.id);
+      setProfile({ ...profile, bio: bioText });
+      setIsEditingBio(false);
+    } catch (err) {
+      console.error('Failed to save bio:', err);
+    } finally {
+      setSavingBio(false);
+    }
+  };
+
+  const handleSubmitReport = async () => {
+    if (!profile || submittingReport) return;
+    setSubmittingReport(true);
+    try {
+      await supabase.from('reports').insert({
+        reporter_id: currentPlayer.id,
+        reporter_name: currentPlayer.username,
+        reported_id: profile.id,
+        reported_name: profile.username,
+        reason: reportReason,
+        details: reportDetails,
+        status: 'pending',
+      });
+      setReportSubmitted(true);
+    } catch (err) {
+      console.error('Failed to submit report:', err);
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
 
   const handleSignOut = async () => {
     if (signingOut) return;
@@ -189,16 +238,31 @@ export default function ProfileView({
             Lobby
           </button>
 
-          {isOwn && (
-            <button
-              onClick={handleSignOut}
-              disabled={signingOut}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold transition-all duration-200 active:scale-95 disabled:opacity-50"
-            >
-              {signingOut ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut size={14} />}
-              <span>Sign Out</span>
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {!isOwn && (
+              <button
+                onClick={() => {
+                  setShowReportModal(true);
+                  setReportSubmitted(false);
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:border-amber-500/50 text-xs font-bold transition-all duration-200"
+              >
+                <Flag size={14} />
+                <span>Report Player</span>
+              </button>
+            )}
+
+            {isOwn && (
+              <button
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold transition-all duration-200 active:scale-95 disabled:opacity-50"
+              >
+                {signingOut ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut size={14} />}
+                <span>Sign Out</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Profile Card Header */}
@@ -207,7 +271,7 @@ export default function ProfileView({
           
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             
-            {/* Hexagon-style Avatar */}
+            {/* Avatar */}
             <div className="relative shrink-0">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-600/30 to-cyan-900/30 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.15)]">
                 <span className="text-3xl font-extrabold text-cyan-300">
@@ -230,9 +294,13 @@ export default function ProfileView({
                     OWN PROFILE
                   </span>
                 )}
+                <span className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-violet-500/10 text-violet-300 border border-violet-500/30 flex items-center gap-1">
+                  ⚡ {profile?.rating ?? 1200} ELO
+                </span>
               </div>
               <p className="text-cyan-400 font-mono text-sm mb-3">@{profile?.username}</p>
-              <div className="flex flex-wrap gap-4 text-xs text-slate-500 font-mono">
+              
+              <div className="flex flex-wrap gap-4 text-xs text-slate-500 font-mono mb-4">
                 <span className="flex items-center gap-1.5">
                   <CalendarDays size={12} className="text-slate-600" />
                   JOINED {profile?.created_at ? fmtDate(profile.created_at).toUpperCase() : '—'}
@@ -242,6 +310,54 @@ export default function ProfileView({
                   {stats.played} MATCHES PLAYED
                 </span>
               </div>
+
+              {/* Player Description / Bio Box */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-sm text-slate-300">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Player Description</span>
+                  {isOwn && !isEditingBio && (
+                    <button
+                      onClick={() => setIsEditingBio(true)}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
+                    >
+                      <Edit3 size={12} /> Edit Bio
+                    </button>
+                  )}
+                </div>
+
+                {isEditingBio ? (
+                  <div className="space-y-3">
+                    <textarea
+                      value={bioText}
+                      onChange={e => setBioText(e.target.value)}
+                      placeholder="Write something about your chess style, goals, or favorite openings..."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 min-h-[70px]"
+                      maxLength={300}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setIsEditingBio(false)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs font-bold hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveBio}
+                        disabled={savingBio}
+                        className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5"
+                      >
+                        {savingBio ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                        Save Bio
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-300 italic text-xs leading-relaxed">
+                    {profile?.bio || (isOwn ? "No description set yet. Click 'Edit Bio' to add one!" : "No description provided.")}
+                  </p>
+                )}
+              </div>
+
             </div>
           </div>
         </div>
@@ -258,136 +374,73 @@ export default function ProfileView({
           <NeonStatCard
             icon={<Trophy className="w-5 h-5 text-emerald-400" />}
             label="Wins / Losses"
-            value={`${stats.wins} / ${stats.losses}`}
-            sub="career record"
+            value={`${stats.wins}W - ${stats.losses}L`}
+            sub={`${stats.winRate}% win rate`}
             color="emerald"
           />
           <NeonStatCard
             icon={<TrendingUp className="w-5 h-5 text-violet-400" />}
-            label="Win Rate"
-            value={`${stats.winRate}%`}
-            sub={stats.played > 0 ? `from ${stats.played} games` : 'no data yet'}
+            label="Rating"
+            value={`${profile?.rating ?? 1200} ELO`}
+            sub="Blitz & Rapid"
             color="violet"
           />
         </div>
 
-        {/* Career Ratio Distribution Bar */}
-        {stats.played > 0 && (
-          <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 mb-6 shadow-2xl">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
-              Career Distribution
-            </h3>
-            <div className="w-full h-4 rounded-full bg-slate-950 overflow-hidden flex mb-3">
-              {stats.wins > 0 && (
-                <div style={{ width: `${winPercent}%` }} className="bg-emerald-500 h-full transition-all" title={`Wins: ${stats.wins}`} />
-              )}
-              {stats.draws > 0 && (
-                <div style={{ width: `${drawPercent}%` }} className="bg-slate-500 h-full transition-all" title={`Draws: ${stats.draws}`} />
-              )}
-              {stats.losses > 0 && (
-                <div style={{ width: `${lossPercent}%` }} className="bg-rose-500 h-full transition-all" title={`Losses: ${stats.losses}`} />
-              )}
-            </div>
-            <div className="grid grid-cols-3 text-center text-xs font-mono">
-              <div className="text-emerald-400 flex flex-col items-center">
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Wins</span>
-                <span className="font-bold">{stats.wins} ({winPercent}%)</span>
-              </div>
-              <div className="text-slate-400 flex flex-col items-center border-x border-slate-800">
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Draws</span>
-                <span className="font-bold">{stats.draws} ({drawPercent}%)</span>
-              </div>
-              <div className="text-rose-400 flex flex-col items-center">
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Losses</span>
-                <span className="font-bold">{stats.losses} ({lossPercent}%)</span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Match History */}
-        <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl">
-          
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <Swords className="w-5 h-5 text-cyan-500" />
-              <h2 className="font-bold tracking-widest text-sm font-mono uppercase text-slate-300">
-                Match History
-              </h2>
-            </div>
-            <span className="text-xs font-mono text-slate-500">
-              {matches.length} GAME{matches.length !== 1 ? 'S' : ''}
-            </span>
-          </div>
-
-          {matches.length > 0 && (
-            <div className="grid grid-cols-[80px_1fr_90px_120px] gap-2 px-6 py-3 border-b border-slate-850 text-[10px] font-bold font-mono uppercase tracking-widest text-slate-600 bg-slate-950/20">
-              <span>Result</span>
-              <span>Opponent</span>
-              <span className="text-right">Duration</span>
-              <span className="text-right">Date</span>
-            </div>
-          )}
+        <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-3xl p-6 shadow-2xl">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Swords className="w-5 h-5 text-violet-400" /> Recent Matches
+          </h2>
 
           {matches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-600 gap-3">
-              <Shield className="w-12 h-12 opacity-25" />
-              <p className="text-xs font-mono tracking-widest uppercase">No completed matches</p>
-            </div>
+            <p className="text-slate-500 text-xs font-mono py-8 text-center">
+              No completed matches found for this player.
+            </p>
           ) : (
-            <div className="divide-y divide-slate-850">
+            <div className="space-y-2.5">
               {matches.map(m => {
-                const result = getResult(m);
+                const res = getResult(m);
                 const isWhite = m.white_player_id === profile?.id;
-                const opponent = isWhite ? m.black_player_username : m.white_player_username;
-                const myColor = isWhite ? 'White ♔' : 'Black ♚';
-
-                const rowBg =
-                  result === 'WIN'
-                    ? 'bg-emerald-950/15 hover:bg-emerald-950/30'
-                    : result === 'LOSS'
-                    ? 'bg-rose-950/15 hover:bg-rose-950/30'
-                    : 'hover:bg-slate-900/40';
+                const oppName = isWhite
+                  ? (m.black_player_username || 'Opponent')
+                  : (m.white_player_username || 'Opponent');
 
                 return (
                   <div
                     key={m.id}
-                    className={`grid grid-cols-[80px_1fr_90px_120px] gap-2 px-6 py-4 items-center transition-colors duration-150 ${rowBg}`}
+                    className="flex items-center justify-between p-3.5 bg-slate-950/50 border border-slate-850 rounded-xl hover:border-slate-700 transition-colors"
                   >
-                    <div>
-                      <ResultBadge result={result} />
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">
-                        vs{' '}
-                        <span className={
-                          result === 'WIN' ? 'text-emerald-400'
-                          : result === 'LOSS' ? 'text-rose-400'
-                          : 'text-slate-400'
-                        }>
-                          {opponent ?? 'Unknown'}
-                        </span>
-                        <span className="ml-2 text-[10px] font-mono text-slate-600 tracking-wide">
-                          [{myColor}]
-                        </span>
-                      </p>
-                    </div>
-
-                    <div className="text-right text-xs font-mono text-slate-400">
-                      {fmtDuration(m.created_at, m.updated_at)}
-                    </div>
-
-                    <div className="text-right flex items-center justify-end gap-3">
-                      <span className="text-xs font-mono text-slate-400">{fmtDate(m.created_at)}</span>
-                      <button
-                        onClick={() => onAnalyzeGame(m.id)}
-                        className="group p-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/5 text-cyan-400 hover:bg-cyan-500/20 transition-all"
-                        title="Analyze Game"
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-black tracking-wider uppercase ${
+                          res === 'WIN'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : res === 'LOSS'
+                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                        }`}
                       >
-                        <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-                      </button>
+                        {res}
+                      </span>
+
+                      <div>
+                        <div className="text-xs font-bold text-slate-200">
+                          vs @{oppName} ({isWhite ? 'White' : 'Black'})
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {fmtDate(m.created_at)} • Duration {fmtDuration(m.created_at, m.updated_at)}
+                        </div>
+                      </div>
                     </div>
+
+                    <button
+                      onClick={() => onAnalyzeGame(m.id)}
+                      className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 font-semibold px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 transition-all"
+                    >
+                      <span>Analyze</span>
+                      <ChevronRight size={14} />
+                    </button>
                   </div>
                 );
               })}
@@ -396,53 +449,115 @@ export default function ProfileView({
         </div>
 
       </div>
+
+      {/* Report Player Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+                Report Player @{profile?.username}
+              </h3>
+              <button onClick={() => setShowReportModal(false)} className="text-slate-500 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {reportSubmitted ? (
+              <div className="text-center py-6 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+                  <Check size={24} />
+                </div>
+                <h4 className="text-sm font-bold text-white">Report Submitted</h4>
+                <p className="text-xs text-slate-400">
+                  Thank you for keeping Chess King fair. Our admin team will review this incident.
+                </p>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1.5">Reason for Report</label>
+                  <select
+                    value={reportReason}
+                    onChange={e => setReportReason(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="Cheating / Engine">Cheating / Engine assistance</option>
+                    <option value="Harassment / Toxicity">Harassment or Toxic Chat</option>
+                    <option value="Stalling / Sandbagging">Stalling or Intentional Abandonment</option>
+                    <option value="Inappropriate Username">Inappropriate Username or Bio</option>
+                    <option value="Other">Other Violation</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1.5">Details (Optional)</label>
+                  <textarea
+                    value={reportDetails}
+                    onChange={e => setReportDetails(e.target.value)}
+                    placeholder="Provide context or game details..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 min-h-[80px]"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowReportModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmitReport}
+                    disabled={submittingReport}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5"
+                  >
+                    {submittingReport ? <Loader2 size={14} className="animate-spin" /> : <Flag size={14} />}
+                    Submit Report
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
-type StatColor = 'cyan' | 'emerald' | 'violet';
-
-function NeonStatCard({
-  icon, label, value, sub, color,
-}: {
+interface StatProps {
   icon: React.ReactNode;
   label: string;
   value: string;
   sub: string;
-  color: StatColor;
-}) {
-  const styles: Record<StatColor, string> = {
-    cyan:    'border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)] hover:shadow-[0_0_20px_rgba(6,182,212,0.2)]',
-    emerald: 'border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.2)]',
-    violet:  'border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.1)] hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]',
-  };
-
-  return (
-    <div className={`bg-slate-900/60 border backdrop-blur-md rounded-2xl p-6 flex flex-col gap-3 transition-all duration-300 ${styles[color]}`}>
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-slate-950/50">{icon}</div>
-        <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-          {label}
-        </span>
-      </div>
-      <p className="text-4xl font-black font-mono text-white tracking-tight leading-none">
-        {value}
-      </p>
-      <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wide">{sub}</p>
-    </div>
-  );
+  color: 'cyan' | 'emerald' | 'violet';
 }
 
-function ResultBadge({ result }: { result: Result }) {
-  const styles: Record<Result, string> = {
-    WIN:  'bg-emerald-950/30 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.1)]',
-    LOSS: 'bg-rose-950/30 text-rose-400 border border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.1)]',
-    DRAW: 'bg-slate-800/50 text-slate-400 border border-slate-650/40',
+function NeonStatCard({ icon, label, value, sub, color }: StatProps) {
+  const borderMap = {
+    cyan: 'border-cyan-500/30 hover:border-cyan-500/60',
+    emerald: 'border-emerald-500/30 hover:border-emerald-500/60',
+    violet: 'border-violet-500/30 hover:border-violet-500/60',
   };
 
   return (
-    <span className={`inline-flex items-center justify-center w-16 py-1.5 rounded-lg text-[10px] font-bold font-mono tracking-widest ${styles[result]}`}>
-      {result}
-    </span>
+    <div className={`p-5 rounded-2xl bg-slate-900/60 border ${borderMap[color]} backdrop-blur-md transition-all duration-300 hover:-translate-y-1 shadow-lg`}>
+      <div className="flex items-center gap-3 mb-2">
+        <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
+          {icon}
+        </div>
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
+      </div>
+      <div className="text-2xl font-black text-white mb-0.5">{value}</div>
+      <div className="text-[11px] font-mono text-slate-500">{sub}</div>
+    </div>
   );
 }

@@ -11,7 +11,7 @@ import {
   getActiveMatches
 } from '../lib/gameService';
 import { supabase } from '../lib/supabase';
-import { Users, Check, X, Eye, Play, Plus, MessageSquare, Send, Shield } from 'lucide-react';
+import { Users, Check, X, Eye, Play, Plus, MessageSquare, Send, Shield, Megaphone } from 'lucide-react';
 
 interface GameLobbyProps {
   player: Player;
@@ -41,6 +41,7 @@ export default function GameLobby({
   const [activeMatches, setActiveMatches] = useState<{ game_id: string; white_player: string; black_player: string; status?: string }[]>([]);
   const [pendingChallenges, setPendingChallenges] = useState<Challenge[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
+  const [broadcastMessage, setBroadcastMessage] = useState<string | null>(null);
 
   // Global Chat States
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -87,11 +88,21 @@ export default function GameLobby({
       }, 2000);
     });
 
+    // Global Announcement listener
+    const bcastChannel = supabase.channel('global-announcements')
+      .on('broadcast', { event: 'announcement' }, (payload) => {
+        if (payload?.payload?.message) {
+          setBroadcastMessage(payload.payload.message);
+        }
+      })
+      .subscribe();
+
     return () => {
       clearInterval(heartbeat);
       clearInterval(poller);
       supabase.removeChannel(generalChannel);
       supabase.removeChannel(redirectChannel);
+      supabase.removeChannel(bcastChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId]);
@@ -208,6 +219,22 @@ export default function GameLobby({
           </div>
         </div>
       </div>
+
+      {/* Global Broadcast Announcement Banner */}
+      {broadcastMessage && (
+        <div className="w-full max-w-6xl mb-4 bg-gradient-to-r from-amber-500/20 via-amber-600/20 to-amber-500/20 border border-amber-500/40 rounded-2xl p-4 flex items-center justify-between shadow-xl backdrop-blur-md z-10 animate-pulse">
+          <div className="flex items-center gap-3">
+            <Megaphone className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-amber-400 block">System Announcement</span>
+              <p className="text-xs font-semibold text-white">{broadcastMessage}</p>
+            </div>
+          </div>
+          <button onClick={() => setBroadcastMessage(null)} className="text-slate-400 hover:text-white p-1">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Two-Column Dashboard */}
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6 z-10 items-start">

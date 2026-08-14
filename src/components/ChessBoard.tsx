@@ -6,8 +6,8 @@ interface ChessBoardProps {
   board: BoardState;
   currentTurn: PieceColor;
   playerColor: PieceColor | null;
-  onMove: (from: Position, to: Position) => void;
-  isActive: boolean;
+  onMove?: (from: Position, to: Position) => void;
+  isActive?: boolean;
   lastMoveFrom?: Position | null;
   lastMoveTo?: Position | null;
 }
@@ -16,8 +16,8 @@ export default function ChessBoard({
   board,
   currentTurn,
   playerColor,
-  onMove,
-  isActive,
+  onMove = () => {},
+  isActive = false,
   lastMoveFrom,
   lastMoveTo,
 }: ChessBoardProps) {

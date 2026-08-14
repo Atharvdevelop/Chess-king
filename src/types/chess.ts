@@ -24,6 +24,22 @@ export interface Player {
   created_at: string;
   last_seen: string;
   status?: string;
+  bio?: string;
+  rating?: number;
+  is_banned?: boolean;
+}
+
+export interface PlayerReport {
+  id: string;
+  reporter_id: string;
+  reporter_name: string;
+  reported_id: string;
+  reported_name: string;
+  game_id?: string | null;
+  reason: string;
+  details?: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  created_at: string;
 }
 
 export interface Game {
