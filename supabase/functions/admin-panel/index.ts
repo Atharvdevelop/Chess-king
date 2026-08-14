@@ -257,6 +257,42 @@ Deno.serve(async (req: Request) => {
     return json({ success: true, message: `Report marked as ${status}.` });
   }
 
+  // 11. FORCE END / ABORT GAME
+  if (action === 'force_end_game') {
+    const { gameId, outcome } = body; // outcome: '1-0', '0-1', '1/2-1/2', 'abort'
+    if (!gameId || !outcome) return json({ error: 'gameId and outcome are required' }, 400);
+
+    let status = 'finished';
+    let winner: string | null = 'draw';
+
+    if (outcome === '1-0') {
+      status = 'finished';
+      winner = 'white';
+    } else if (outcome === '0-1') {
+      status = 'finished';
+      winner = 'black';
+    } else if (outcome === '1/2-1/2') {
+      status = 'finished';
+      winner = 'draw';
+    } else if (outcome === 'abort') {
+      status = 'abandoned';
+      winner = 'draw';
+    }
+
+    const { data: game } = await adminClient.from('games').select('white_player_id, black_player_id').eq('id', gameId).single();
+
+    await adminClient.from('games').update({ status, winner }).eq('id', gameId);
+
+    if (game) {
+      const playerIds = [game.white_player_id, game.black_player_id].filter(Boolean);
+      if (playerIds.length > 0) {
+        await adminClient.from('players').update({ status: 'online' }).in('id', playerIds);
+      }
+    }
+
+    return json({ success: true, message: `Game set to outcome ${outcome}.` });
+  }
+
   return json({ error: `Unknown action: ${action}` }, 400);
 });
 

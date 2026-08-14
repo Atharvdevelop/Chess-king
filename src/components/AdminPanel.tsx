@@ -270,6 +270,18 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
     }
   };
 
+  // ── Force End / Abort Game ────────────────────────────────────────────────
+  const handleForceEndGame = async (gameId: string, outcome: '1-0' | '0-1' | '1/2-1/2' | 'abort') => {
+    try {
+      await callAdmin({ action: 'force_end_game', gameId, outcome });
+      setActionNotice({ type: 'success', msg: `Match resolved with outcome ${outcome}.` });
+      setSpectatingGame(null);
+      fetchDashboardData();
+    } catch (err: any) {
+      setActionNotice({ type: 'error', msg: err.message });
+    }
+  };
+
   // ── Send Global System Broadcast ──────────────────────────────────────────
   const handleSendBroadcast = async () => {
     if (!broadcastText.trim()) return;
@@ -712,8 +724,8 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
                   <ArrowLeft size={14} /> Back to Live List
                 </button>
 
-                <div className="flex flex-col items-center justify-center p-4 bg-slate-950 border border-slate-800 rounded-2xl">
-                  <div className="text-xs text-slate-400 font-bold mb-3">
+                <div className="flex flex-col items-center justify-center p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                  <div className="text-xs text-slate-400 font-bold">
                     Spectating: <span className="text-white">@{spectatingGame.white_player_username || 'White'}</span> vs <span className="text-white">@{spectatingGame.black_player_username || 'Black'}</span>
                   </div>
                   <div className="w-[340px] h-[340px] border border-slate-800 rounded-lg overflow-hidden">
@@ -722,6 +734,15 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
                       currentTurn={spectatingGame.current_turn || 'white'}
                       playerColor="white"
                     />
+                  </div>
+
+                  {/* Admin Force Outcome Controls */}
+                  <div className="pt-3 border-t border-slate-800 flex flex-wrap gap-2 justify-center">
+                    <span className="w-full text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">Admin Force Match Result</span>
+                    <button onClick={() => handleForceEndGame(spectatingGame.id, '1-0')} className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold">1-0 (White Win)</button>
+                    <button onClick={() => handleForceEndGame(spectatingGame.id, '0-1')} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-bold">0-1 (Black Win)</button>
+                    <button onClick={() => handleForceEndGame(spectatingGame.id, '1/2-1/2')} className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold">1/2-1/2 (Draw)</button>
+                    <button onClick={() => handleForceEndGame(spectatingGame.id, 'abort')} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold">Abort Match</button>
                   </div>
                 </div>
               </div>
@@ -748,6 +769,12 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
                     >
                       <Play size={14} /> Spectate Live
                     </button>
+                    <div className="pt-2 flex flex-wrap gap-1 border-t border-slate-850">
+                      <button onClick={() => handleForceEndGame(g.id, '1-0')} className="flex-1 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-bold">1-0</button>
+                      <button onClick={() => handleForceEndGame(g.id, '0-1')} className="flex-1 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded text-[10px] font-bold">0-1</button>
+                      <button onClick={() => handleForceEndGame(g.id, '1/2-1/2')} className="flex-1 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[10px] font-bold">1/2</button>
+                      <button onClick={() => handleForceEndGame(g.id, 'abort')} className="py-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded text-[10px] font-bold">Abort</button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -77,11 +77,18 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
         if (activeColorSnapshot.current === 'white') {
           const newWhiteTime = Math.max(0, whiteTimeSnapshot.current - elapsedSec);
           setWhiteTime(newWhiteTime);
-          // Keep the game object's field in sync for timeout detection downstream.
+          if (newWhiteTime <= 0 && !timeoutFiredRef.current) {
+            timeoutFiredRef.current = true;
+            endGameOnTimeout(gameId, 'white');
+          }
           return { ...prevGame, white_time_remaining: newWhiteTime };
         } else {
           const newBlackTime = Math.max(0, blackTimeSnapshot.current - elapsedSec);
           setBlackTime(newBlackTime);
+          if (newBlackTime <= 0 && !timeoutFiredRef.current) {
+            timeoutFiredRef.current = true;
+            endGameOnTimeout(gameId, 'black');
+          }
           return { ...prevGame, black_time_remaining: newBlackTime };
         }
       });

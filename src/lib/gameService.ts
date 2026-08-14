@@ -75,7 +75,38 @@ export async function getAllMembers(): Promise<Player[]> {
   return data || [];
 }
 
+export async function autoCleanupStaleGames() {
+  try {
+    const { data: activeGames } = await supabase
+      .from('games')
+      .select('id, current_turn, last_move_at, time_limit, white_time_remaining, black_time_remaining')
+      .eq('status', 'active');
+
+    if (!activeGames || activeGames.length === 0) return;
+
+    const now = Date.now();
+    for (const g of activeGames) {
+      const lastMove = g.last_move_at ? new Date(g.last_move_at).getTime() : now;
+      const elapsedSec = (now - lastMove) / 1000;
+      const allowedSec = (g.current_turn === 'white' ? g.white_time_remaining : g.black_time_remaining) ?? g.time_limit ?? 600;
+
+      if (elapsedSec > allowedSec + 15) {
+        const lostColor: PieceColor = g.current_turn;
+        const winner: PieceColor = lostColor === 'white' ? 'black' : 'white';
+        await supabase
+          .from('games')
+          .update({ status: 'finished', winner })
+          .eq('id', g.id);
+      }
+    }
+  } catch (err) {
+    console.warn('Auto cleanup error:', err);
+  }
+}
+
 export async function getActiveMatches() {
+  await autoCleanupStaleGames();
+
   const { data, error } = await supabase
     .from('currently_playing')
     .select('*');
