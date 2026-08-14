@@ -38,7 +38,8 @@ export default function ChallengeView({
   // Matchmaking / Waiting overlays
   const [showDirectWaiting, setShowDirectWaiting] = useState(false);
   const [showOpenWaiting, setShowOpenWaiting] = useState(false);
-  const [pendingGameId, setPendingGameId] = useState<string | null>(null);
+  const [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null);
+
   
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -138,71 +139,49 @@ export default function ChallengeView({
     setSendingDirect(true);
 
     try {
-      // 1. Resolve opponent uuid
-      const { data: profile } = await supabase
-        .from('profiles')
+      // 1. Resolve opponent's player uuid from the players table
+      //    (challenges table references players.id, not profiles.id)
+      const { data: opponentPlayer, error: opErr } = await supabase
+        .from('players')
         .select('id')
         .eq('username', target)
-        .single();
-      
-      if (!profile) throw new Error('Player not found.');
+        .maybeSingle();
 
-      // 2. Set time limits
-      let mins = 10;
-      if (selectedFormat !== 'custom') {
-        mins = parseInt(selectedFormat.split('+')[0], 10) || 10;
-      } else {
-        mins = customMinutes;
-      }
-      const limitSec = mins * 60;
+      if (opErr) throw opErr;
+      if (!opponentPlayer) throw new Error(`Player "${target}" not found. They may not have logged in yet.`);
 
-      // 3. Build board
-      const initialBoard = {
-        "a8":{"type":"rook","color":"black"},"b8":{"type":"knight","color":"black"},"c8":{"type":"bishop","color":"black"},"d8":{"type":"queen","color":"black"},"e8":{"type":"king","color":"black"},"f8":{"type":"bishop","color":"black"},"g8":{"type":"knight","color":"black"},"h8":{"type":"rook","color":"black"},
-        "a7":{"type":"pawn","color":"black"},"b7":{"type":"pawn","color":"black"},"c7":{"type":"pawn","color":"black"},"d7":{"type":"pawn","color":"black"},"e7":{"type":"pawn","color":"black"},"f7":{"type":"pawn","color":"black"},"g7":{"type":"pawn","color":"black"},"h7":{"type":"pawn","color":"black"},
-        "a2":{"type":"pawn","color":"white"},"b2":{"type":"pawn","color":"white"},"c2":{"type":"pawn","color":"white"},"d2":{"type":"pawn","color":"white"},"e2":{"type":"pawn","color":"white"},"f2":{"type":"pawn","color":"white"},"g2":{"type":"pawn","color":"white"},"h2":{"type":"pawn","color":"white"},
-        "a1":{"type":"rook","color":"white"},"b1":{"type":"knight","color":"white"},"c1":{"type":"bishop","color":"white"},"d1":{"type":"queen","color":"white"},"e1":{"type":"king","color":"white"},"f1":{"type":"bishop","color":"white"},"g1":{"type":"knight","color":"white"},"h1":{"type":"rook","color":"white"}
-      };
-
-      // 4. Create row
-      const { data: newGame, error: gameErr } = await supabase
-        .from('games')
+      // 2. Insert into challenges table (correct approach — avoids missing
+      //    time_format column on games and keeps data model consistent)
+      const { data: challenge, error: chalErr } = await supabase
+        .from('challenges')
         .insert({
-          white_player_id: profileId,
-          black_player_id: profile.id,
-          white_player_username: currentPlayer.username,
-          black_player_username: target,
-          time_limit: limitSec,
-          white_time_remaining: limitSec,
-          black_time_remaining: limitSec,
-          board_state: initialBoard,
-          current_turn: 'white',
+          challenger_id: profileId,
+          challenged_id: opponentPlayer.id,
           status: 'pending',
-          time_format: selectedFormat === 'custom' ? `${customMinutes}+${customIncrement}` : selectedFormat
         })
         .select('id')
         .single();
 
-      if (gameErr) throw gameErr;
+      if (chalErr) throw chalErr;
 
-      setPendingGameId(newGame.id);
+      setPendingChallengeId(challenge.id);
       startElapsedTimer();
       setShowDirectWaiting(true);
 
-      // 5. Watch challenge status changes
+      // 3. Watch for the challenge to be accepted (game_id stamped) or rejected
       if (directSubRef.current) supabase.removeChannel(directSubRef.current);
       directSubRef.current = supabase
-        .channel(`challenge-state-${newGame.id}`)
+        .channel(`challenge-state-${challenge.id}`)
         .on('postgres_changes', {
-          event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${newGame.id}`
+          event: 'UPDATE', schema: 'public', table: 'challenges', filter: `id=eq.${challenge.id}`
         }, (payload) => {
-          const row = payload.new;
+          const row = payload.new as { status?: string; game_id?: string };
           if (!row) return;
 
-          if (row.status === 'active') {
+          if (row.status === 'accepted' && row.game_id) {
             cleanupDirect();
-            onGameStart(newGame.id);
-          } else if (row.status === 'rejected' || row.status === 'cancelled') {
+            onGameStart(row.game_id);
+          } else if (row.status === 'rejected' || row.status === 'declined') {
             cleanupDirect();
             setUsernameHint('Challenge declined by opponent.');
             setUsernameStatus('invalid');
@@ -220,8 +199,8 @@ export default function ChallengeView({
   };
 
   const handleCancelDirect = async () => {
-    if (pendingGameId) {
-      await supabase.from('games').delete().eq('id', pendingGameId);
+    if (pendingChallengeId) {
+      await supabase.from('challenges').delete().eq('id', pendingChallengeId);
     }
     cleanupDirect();
   };
@@ -229,7 +208,7 @@ export default function ChallengeView({
   const cleanupDirect = () => {
     stopElapsedTimer();
     setShowDirectWaiting(false);
-    setPendingGameId(null);
+    setPendingChallengeId(null);
     if (directSubRef.current) {
       supabase.removeChannel(directSubRef.current);
       directSubRef.current = null;

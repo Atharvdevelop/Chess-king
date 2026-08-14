@@ -256,16 +256,8 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     return 'Resignation';
   }, [game, movesData]);
 
-  if (!game) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading game...</div>
-      </div>
-    );
-  }
-
-  const isWaiting = game.status === 'waiting';
-
+  // ⚠️ IMPORTANT: This useEffect MUST be declared before any conditional returns
+  // to comply with React's Rules of Hooks (prevents error #310).
   useEffect(() => {
     if (game?.status !== 'active') return;
     if (whiteTime <= 0 && game.current_turn === 'white') {
@@ -276,6 +268,16 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [whiteTime, blackTime, game?.status, game?.current_turn]);
+
+  if (!game) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading game...</div>
+      </div>
+    );
+  }
+
+  const isWaiting = game.status === 'waiting';
 
   const formatTime = (timeInSecs: number) => {
     const mins = Math.floor(timeInSecs / 60);
