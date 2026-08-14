@@ -118,112 +118,87 @@ export default function ChessBoard({
   const inCheck = isKingInCheck(board, currentTurn);
 
   return (
-    <div className="flex flex-col items-center select-none">
-      <div className="mb-4 text-center">
-        <div className="text-sm text-gray-400">
-          {isActive ? (
-            <>
-              <span className={`font-semibold ${currentTurn === 'white' ? 'text-gray-100' : 'text-gray-300'}`}>
-                {currentTurn === 'white' ? 'White' : 'Black'}
-              </span> to move
-            </>
-          ) : (
-            <span className="text-gray-500">Waiting for opponent...</span>
-          )}
-        </div>
-        {playerColor && (
-          <div className="text-xs text-violet-400 font-medium mt-1">
-            Playing as {playerColor}
-          </div>
-        )}
-      </div>
+    <div
+      ref={boardRef}
+      className="grid grid-cols-8 grid-rows-8 gap-0 w-full h-full select-none"
+      onDragOver={handleDragOver}
+    >
+      {Array.from({ length: 8 }, (_, vRow) =>
+        Array.from({ length: 8 }, (_, vCol) => {
+          const isBlack = playerColor === 'black';
+          const row = isBlack ? 7 - vRow : vRow;
+          const col = isBlack ? 7 - vCol : vCol;
 
-      <div
-        ref={boardRef}
-        className="inline-flex justify-center bg-slate-950 p-2 sm:p-4 rounded-lg shadow-2xl border border-slate-800"
-        onDragOver={handleDragOver}
-      >
-        <div className="grid grid-cols-8 grid-rows-8 gap-0 border-2 border-slate-900 rounded-[2px] overflow-hidden w-[95vw] h-[95vw] lg:w-[600px] lg:h-[600px]">
-          {Array.from({ length: 8 }, (_, vRow) =>
-            Array.from({ length: 8 }, (_, vCol) => {
-              const isBlack = playerColor === 'black';
-              const row = isBlack ? 7 - vRow : vRow;
-              const col = isBlack ? 7 - vCol : vCol;
+          const piece = board[positionToKey({ row, col })];
+          const isLight = (row + col) % 2 === 0;
+          const isSelected = isSquareSelected(row, col);
+          const isValidMove = isValidMoveSquare(row, col);
+          const isDragging = draggedPiece?.row === row && draggedPiece?.col === col;
 
-              const piece = board[positionToKey({ row, col })];
-              const isLight = (row + col) % 2 === 0;
-              const isSelected = isSquareSelected(row, col);
-              const isValidMove = isValidMoveSquare(row, col);
-              const isDragging = draggedPiece?.row === row && draggedPiece?.col === col;
+          const isKingInCheckSquare = inCheck && piece && piece.type === 'king' && piece.color === currentTurn;
+          const isLastFrom = lastMoveFrom?.row === row && lastMoveFrom?.col === col;
+          const isLastTo = lastMoveTo?.row === row && lastMoveTo?.col === col;
 
-              const isKingInCheckSquare = inCheck && piece && piece.type === 'king' && piece.color === currentTurn;
-              const isLastFrom = lastMoveFrom?.row === row && lastMoveFrom?.col === col;
-              const isLastTo = lastMoveTo?.row === row && lastMoveTo?.col === col;
+          // Color determination
+          let squareBgColor = isLight ? '#dee3e6' : '#8ca2ad';
+          if (isSelected) {
+            squareBgColor = 'rgba(139, 92, 246, 0.55)';
+          } else if (isKingInCheckSquare) {
+            squareBgColor = 'rgba(239, 68, 68, 0.55)';
+          } else if (isLastFrom) {
+            squareBgColor = 'rgba(205, 210, 106, 0.55)';
+          } else if (isLastTo) {
+            squareBgColor = 'rgba(205, 210, 106, 0.75)';
+          }
 
-              // Color determination
-              let squareBgColor = isLight ? '#dee3e6' : '#8ca2ad';
-              if (isSelected) {
-                squareBgColor = 'rgba(139, 92, 246, 0.55)'; // Violet selection
-              } else if (isKingInCheckSquare) {
-                squareBgColor = 'rgba(239, 68, 68, 0.55)'; // Red check
-              } else if (isLastFrom) {
-                squareBgColor = 'rgba(205, 210, 106, 0.55)'; // Last move yellow-green
-              } else if (isLastTo) {
-                squareBgColor = 'rgba(205, 210, 106, 0.75)';
-              }
-
-              return (
-                <div
-                  key={`${row}-${col}`}
-                  onClick={() => handleSquareClick(row, col)}
-                  onDragStart={(e) => handleDragStart(e, row, col)}
-                  onDrop={(e) => handleDrop(e, row, col)}
-                  onDragOver={handleDragOver}
-                  draggable={!!piece && piece.color === playerColor && isActive}
-                  className={`
-                    w-full h-full flex items-center justify-center
-                    cursor-pointer relative
-                    transition-all duration-150
-                    ${isDragging ? 'opacity-50' : ''}
-                    ${piece && piece.color === playerColor && isActive ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                    ${!isActive || !playerColor || currentTurn !== playerColor ? 'opacity-90' : 'hover:brightness-95'}
-                  `}
-                  style={{
-                    backgroundColor: squareBgColor
-                  }}
-                >
-                  {vCol === 0 && (
-                    <div className="absolute left-1.5 top-1 text-[10px] font-bold"
-                         style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
-                      {ranks[row]}
-                    </div>
-                  )}
-                  {vRow === 7 && (
-                    <div className="absolute right-1.5 bottom-1 text-[10px] font-bold"
-                         style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
-                      {files[col]}
-                    </div>
-                  )}
-                  {piece && (
-                    <img
-                      src={`/assets/pieces/${piece.color === 'white' ? 'w' : 'b'}_${piece.type}.svg`}
-                      alt={`${piece.color} ${piece.type}`}
-                      draggable={false}
-                      className={`w-[84%] h-[84%] object-contain select-none pointer-events-none drop-shadow-[0_3px_5px_rgba(0,0,0,0.45)] z-10 transition-transform ${isDragging ? 'opacity-30' : ''}`}
-                    />
-                  )}
-                  {isValidMove && !piece && (
-                    <div className="absolute w-3.5 h-3.5 bg-slate-900/35 rounded-full pointer-events-none z-20"></div>
-                  )}
-                  {isValidMove && piece && (
-                    <div className="absolute inset-0 border-4 border-slate-900/30 pointer-events-none z-20"></div>
-                  )}
+          return (
+            <div
+              key={`${row}-${col}`}
+              onClick={() => handleSquareClick(row, col)}
+              onDragStart={(e) => handleDragStart(e, row, col)}
+              onDrop={(e) => handleDrop(e, row, col)}
+              onDragOver={handleDragOver}
+              draggable={!!piece && piece.color === playerColor && isActive}
+              className={`
+                w-full h-full flex items-center justify-center
+                cursor-pointer relative
+                transition-all duration-150
+                ${isDragging ? 'opacity-50' : ''}
+                ${piece && piece.color === playerColor && isActive ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                ${!isActive || !playerColor || currentTurn !== playerColor ? 'opacity-90' : 'hover:brightness-95'}
+              `}
+              style={{ backgroundColor: squareBgColor }}
+            >
+              {vCol === 0 && (
+                <div className="absolute left-1.5 top-1 text-[10px] font-bold"
+                     style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
+                  {ranks[row]}
                 </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+              )}
+              {vRow === 7 && (
+                <div className="absolute right-1.5 bottom-1 text-[10px] font-bold"
+                     style={{ color: isLight ? '#8ca2ad' : '#dee3e6' }}>
+                  {files[col]}
+                </div>
+              )}
+              {piece && (
+                <img
+                  src={`/assets/pieces/${piece.color === 'white' ? 'w' : 'b'}_${piece.type}.svg`}
+                  alt={`${piece.color} ${piece.type}`}
+                  draggable={false}
+                  className={`w-[84%] h-[84%] object-contain select-none pointer-events-none drop-shadow-[0_3px_5px_rgba(0,0,0,0.45)] z-10 transition-transform ${isDragging ? 'opacity-30' : ''}`}
+                />
+              )}
+              {isValidMove && !piece && (
+                <div className="absolute w-3.5 h-3.5 bg-slate-900/35 rounded-full pointer-events-none z-20"></div>
+              )}
+              {isValidMove && piece && (
+                <div className="absolute inset-0 border-4 border-slate-900/30 pointer-events-none z-20"></div>
+              )}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

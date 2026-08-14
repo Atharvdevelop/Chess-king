@@ -298,7 +298,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
   const opponentTimeCritical = opponentTime < 10;
 
   return (
-    <div className="w-screen h-screen max-h-screen overflow-hidden bg-slate-950 flex flex-col lg:flex-row items-center justify-center p-4 gap-6 relative">
+    <div className="w-screen h-screen max-h-screen overflow-hidden bg-slate-950 flex flex-col lg:flex-row items-center justify-center pt-16 pb-4 px-4 gap-4 lg:gap-6 relative">
       
       {/* Top Bar */}
       <div className="w-full flex items-center justify-between text-slate-300 absolute top-0 left-0 p-4 z-10 pointer-events-auto">
@@ -334,10 +334,14 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
       </div>
 
       {/* LEFT SIDE: Board */}
-      <div className="flex flex-col items-center justify-center w-full max-w-full lg:w-auto h-auto mt-12 lg:mt-0 relative shrink-0">
+      {/* Board is sized to min(80vmin, 100vh - 160px) so it always fits the screen vertically */}
+      <div className="flex flex-col items-center justify-center w-full max-w-full lg:w-auto h-auto relative shrink-0">
         
         {/* Opponent Info */}
-        <div className="w-[80vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
+        <div
+          className="flex justify-between items-center text-slate-300 py-2 px-1"
+          style={{ width: 'min(80vmin, calc(100vh - 160px))' }}
+        >
           <span className="font-medium text-sm flex items-center gap-2">
             {opponentUsername}
             <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 uppercase tracking-wider">Opponent</span>
@@ -349,8 +353,11 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
           </span>
         </div>
 
-        {/* Board Frame */}
-        <div className="w-[80vmin] h-[80vmin] max-w-full max-h-full aspect-square bg-slate-900 border-2 border-slate-800 rounded-lg shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden relative">
+        {/* Board Frame — fills to min(80vmin, available height) */}
+        <div
+          className="bg-slate-900 border-2 border-slate-800 rounded-lg shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden relative"
+          style={{ width: 'min(80vmin, calc(100vh - 160px))', height: 'min(80vmin, calc(100vh - 160px))' }}
+        >
           <ChessBoard
             board={currentBoard || game.board_state}
             currentTurn={game.current_turn}
@@ -372,7 +379,10 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
         </div>
 
         {/* My Info */}
-        <div className="w-[80vmin] max-w-full flex justify-between items-center text-slate-300 py-2 px-1">
+        <div
+          className="flex justify-between items-center text-slate-300 py-2 px-1"
+          style={{ width: 'min(80vmin, calc(100vh - 160px))' }}
+        >
           <span className="font-medium text-sm flex items-center gap-2">
             {myUsername}
             <span className="text-[10px] bg-cyan-900/40 text-cyan-400 border border-cyan-800/50 px-1.5 py-0.5 rounded uppercase tracking-wider">You</span>
@@ -386,7 +396,10 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
       </div>
 
       {/* RIGHT SIDE: Sidebar widgets */}
-      <div className="w-full max-w-full lg:w-[320px] xl:w-[380px] h-[300px] lg:h-[80vmin] flex flex-col gap-4">
+      <div
+        className="w-full max-w-full lg:w-[320px] xl:w-[380px] h-[220px] flex flex-col gap-4"
+        style={{ ['--board-size' as string]: 'min(80vmin, calc(100vh - 160px))' }}
+      >
         
         <div className="flex-1 bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col overflow-hidden shadow-2xl">
           <div className="flex justify-between items-center mb-3">
