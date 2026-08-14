@@ -173,7 +173,7 @@ export default function GameLobby({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 lg:p-8 flex flex-col items-center relative antialiased text-slate-100 overflow-y-auto">
+    <div className="min-h-screen bg-slate-950 p-4 lg:p-8 flex flex-col items-center relative antialiased text-slate-100">
       
       {/* Decorative radial glows */}
       <div className="absolute top-0 left-0 w-80 h-80 bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
@@ -353,7 +353,7 @@ export default function GameLobby({
         </div>
 
         {/* RIGHT COLUMN: Online Players Sidebar & Global Chat */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-4 self-start">
           
           {/* Online Players */}
           <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-5 shadow-xl flex flex-col h-[300px]">

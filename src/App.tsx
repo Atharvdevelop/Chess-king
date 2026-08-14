@@ -270,7 +270,7 @@ function App() {
   // Default: lobby  — wrap in flex row so sidebar sits next to content
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100">
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         <GameLobby
           player={player}
           profileId={profileId ?? player.id}
