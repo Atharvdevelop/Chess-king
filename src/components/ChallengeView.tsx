@@ -47,6 +47,8 @@ export default function ChallengeView({
   const elapsedIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const directSubRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const openSubRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // Polling fallback — fires every 3s while waiting for challenge acceptance
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Time format config list
   const formatList = [
@@ -168,7 +170,8 @@ export default function ChallengeView({
       startElapsedTimer();
       setShowDirectWaiting(true);
 
-      // 3. Watch for the challenge to be accepted (game_id stamped) or rejected
+      // 3a. Primary: Realtime subscription — fastest path but can silently fail
+      //     if RLS blocks SELECT on challenges for this user.
       if (directSubRef.current) supabase.removeChannel(directSubRef.current);
       directSubRef.current = supabase
         .channel(`challenge-state-${challenge.id}`)
@@ -188,6 +191,27 @@ export default function ChallengeView({
           }
         })
         .subscribe();
+
+      // 3b. Fallback: poll every 3 seconds — guarantees redirect even if
+      //     realtime event is dropped (e.g. due to RLS misconfiguration).
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        const { data } = await supabase
+          .from('challenges')
+          .select('status, game_id')
+          .eq('id', challenge.id)
+          .maybeSingle();
+
+        if (!data) return;
+        if (data.status === 'accepted' && data.game_id) {
+          cleanupDirect();
+          onGameStart(data.game_id);
+        } else if (data.status === 'rejected' || data.status === 'declined') {
+          cleanupDirect();
+          setUsernameHint('Challenge declined by opponent.');
+          setUsernameStatus('invalid');
+        }
+      }, 3000);
 
     } catch (err: any) {
       console.error(err);
@@ -209,6 +233,11 @@ export default function ChallengeView({
     stopElapsedTimer();
     setShowDirectWaiting(false);
     setPendingChallengeId(null);
+    // Stop the polling fallback
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
     if (directSubRef.current) {
       supabase.removeChannel(directSubRef.current);
       directSubRef.current = null;
@@ -281,7 +310,7 @@ export default function ChallengeView({
 
     if (error) throw error;
 
-    // Listen for updates when someone pairs with our row
+    // 3a. Primary: Realtime subscription
     if (openSubRef.current) supabase.removeChannel(openSubRef.current);
     openSubRef.current = supabase
       .channel(`open-pairing-${queueRow.id}`)
@@ -295,6 +324,21 @@ export default function ChallengeView({
         }
       })
       .subscribe();
+
+    // 3b. Fallback: poll every 3 seconds in case realtime misses the event
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from('matchmaking_queue')
+        .select('game_id')
+        .eq('id', queueRow.id)
+        .maybeSingle();
+
+      if (data?.game_id) {
+        cleanupOpen();
+        onGameStart(data.game_id);
+      }
+    }, 3000);
   };
 
   const handleCancelOpen = async () => {
@@ -305,6 +349,10 @@ export default function ChallengeView({
   const cleanupOpen = () => {
     stopElapsedTimer();
     setShowOpenWaiting(false);
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
     if (openSubRef.current) {
       supabase.removeChannel(openSubRef.current);
       openSubRef.current = null;
