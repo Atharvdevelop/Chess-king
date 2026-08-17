@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Crown, Eye, EyeOff, Mail, Lock, User, ChevronRight, ArrowLeft, Loader2 } from 'lucide-react';
 
-type ViewMode = 'signin' | 'register' | 'forgot';
+type ViewMode = 'signin' | 'register' | 'forgot' | 'reset-password';
 
 interface AuthViewProps {
   onAuthSuccess: (userId: string, username: string) => void;
+  initialMode?: ViewMode;
 }
 
 interface InputFieldProps {
@@ -73,8 +74,15 @@ function PasswordToggle({ show, onToggle }: PasswordToggleProps) {
   );
 }
 
-export default function AuthView({ onAuthSuccess }: AuthViewProps) {
-  const [mode, setMode] = useState<ViewMode>('signin');
+export default function AuthView({ onAuthSuccess, initialMode }: AuthViewProps) {
+  const [mode, setMode] = useState<ViewMode>(() => {
+    if (initialMode) return initialMode;
+    if (typeof window !== 'undefined' && window.location.pathname === '/reset-password') {
+      return 'reset-password';
+    }
+    return 'signin';
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -93,6 +101,10 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
 
   // Forgot password field
   const [forgotEmail, setForgotEmail] = useState('');
+
+  // Reset password fields
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   const clearMessages = () => { setError(''); setSuccess(''); };
 
@@ -211,6 +223,40 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
       setForgotEmail('');
     } catch (err: any) {
       setError(err.message ?? 'Failed to send recovery email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── RESET PASSWORD ─────────────────────────────────────────────────────────
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearMessages();
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) throw updateError;
+      setSuccess('Password updated successfully! Redirecting to Sign In...');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          window.history.pushState({}, '', '/');
+        }
+        switchMode('signin');
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to update password.');
     } finally {
       setLoading(false);
     }
@@ -387,6 +433,51 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Send Recovery Email <ChevronRight size={16} /></>}
                 </button>
               </form>
+            </>
+          )}
+
+          {/* ── RESET PASSWORD ── */}
+          {mode === 'reset-password' && (
+            <>
+              <h2 className="text-lg font-bold text-white mb-2">Set New Password</h2>
+              <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+                Enter your new account password below.
+              </p>
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <InputField
+                  id="new-password"
+                  type={showPassword ? 'text' : 'password'}
+                  label="New Password"
+                  icon={Lock}
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  placeholder="Min 6 characters"
+                  loading={loading}
+                  rightElement={pwToggle}
+                />
+                <InputField
+                  id="confirm-new-password"
+                  type={showPassword ? 'text' : 'password'}
+                  label="Confirm Password"
+                  icon={Lock}
+                  value={confirmNewPassword}
+                  onChange={setConfirmNewPassword}
+                  placeholder="Repeat new password"
+                  loading={loading}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !newPassword || !confirmNewPassword}
+                  className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-violet-600/25 hover:shadow-violet-600/35 flex items-center justify-center gap-2 mt-6 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Update Password <ChevronRight size={16} /></>}
+                </button>
+              </form>
+              <div className="mt-6 text-center text-sm text-slate-400 border-t border-slate-900 pt-5">
+                <button onClick={() => switchMode('signin')} className="text-violet-400 hover:text-violet-300 font-semibold transition-colors outline-none">
+                  Back to Sign In
+                </button>
+              </div>
             </>
           )}
         </div>

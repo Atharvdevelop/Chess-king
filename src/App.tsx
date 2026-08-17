@@ -25,6 +25,7 @@ type AppView =
 // ─── URL → initial view ───────────────────────────────────────────────────────
 function resolveInitialView(hasPlayer: boolean = false): AppView {
   const path = window.location.pathname;
+  if (path === '/reset-password') return { screen: 'auth' };
   if (path.startsWith('/game/')) {
     const id = path.split('/')[2];
     if (id) return { screen: 'game', gameId: id };
@@ -79,8 +80,11 @@ function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session);
+        if (event === 'PASSWORD_RECOVERY') {
+          setView({ screen: 'auth' });
+        }
       }
     );
 
@@ -216,7 +220,13 @@ function App() {
   }
 
   if (!player || view.screen === 'auth') {
-    return <AuthView onAuthSuccess={handleAuthSuccess} />;
+    const isResetPath = typeof window !== 'undefined' && window.location.pathname === '/reset-password';
+    return (
+      <AuthView
+        initialMode={isResetPath ? 'reset-password' : undefined}
+        onAuthSuccess={handleAuthSuccess}
+      />
+    );
   }
 
   // Ban Enforcement Check
