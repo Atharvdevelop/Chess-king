@@ -1,0 +1,82 @@
+================================================================================
+                           CHESS KING - FUTURE ROADMAP & PLANS
+================================================================================
+
+This document outlines the short-term, medium-term, and long-term expansion plans
+for Chess King to maintain a clean architecture, scalable database, and feature-rich
+chess platform.
+
+--------------------------------------------------------------------------------
+1. NAVIGATION & LAYOUT IMPROVEMENTS (PHASE 1 - COMPLETED)
+--------------------------------------------------------------------------------
+- [x] Replace permanent "SOCIAL" right sidebar with a 3-line Hamburger Navigation Drawer (☰).
+- [x] Slide-over Menu with quick access to:
+      • Social & Friends (Online players, search, friend requests, private messaging)
+      • Player Stats (Rating, win/loss stats, accuracy)
+      • Analysis / Pass & Play (Offline 2-player local chess on single screen)
+      • Bots (AI Opponents) [Future]
+      • Leaderboard (Global Rankings) [Future]
+      • Puzzles & Tactics [Future]
+      • Admin Panel (For platform management)
+
+--------------------------------------------------------------------------------
+2. DATABASE CLEANUP & PERFORMANCE OPTIMIZATION (PHASE 2)
+--------------------------------------------------------------------------------
+- [ ] Database Schema Unification:
+      • Create a unified Postgres VIEW `players` backed by `profiles` (linked to `auth.users(id)`).
+      • Avoid double-writing across `profiles` and `players` tables.
+- [ ] Automated TTL Queue Cleanup:
+      • Schedule SQL function/cron (`clean_stale_matchmaking_queue`) to auto-expire
+        matchmaking queue entries older than 2 minutes.
+      • Auto-expire pending challenges older than 15 minutes.
+- [ ] Compound Database Indexes:
+      • Add composite index on `games (status, white_player_id, black_player_id)`.
+      • Add composite index on `moves (game_id, move_number ASC)`.
+      • Add composite index on `friend_requests (sender_id, receiver_id, status)`.
+- [ ] Automated `updated_at` Postgres Triggers for games and challenges.
+
+--------------------------------------------------------------------------------
+3. BOTS & AI OPPONENTS (PHASE 3 - UPCOMING)
+--------------------------------------------------------------------------------
+- [ ] Stockfish WASM Engine Integration:
+      • Embed local Stockfish engine to support offline and online bot matches.
+- [ ] Bot Difficulty Tiers:
+      • Level 1: Beginner Bot (Rating 800)
+      • Level 2: Intermediate Bot (Rating 1200)
+      • Level 3: Master Bot (Rating 1600)
+      • Level 4: Grandmaster Bot (Rating 2000+)
+- [ ] Custom Bot Personalities (Aggressive, Defensive, Tactical, Endgame Specialist).
+
+--------------------------------------------------------------------------------
+4. LEADERBOARDS & COMPETITIVE LEAGUES (PHASE 4 - UPCOMING)
+--------------------------------------------------------------------------------
+- [ ] Global Leaderboard:
+      • Top 100 Players ranked by Elo rating across standard, rapid, blitz, and bullet time formats.
+- [ ] Tiered Rating Leagues:
+      • Bronze (0-1000), Silver (1000-1400), Gold (1400-1800), Diamond (1800-2200), Grandmaster (2200+).
+- [ ] Match History & Rating Graphs:
+      • Visual charts showing Elo rating progression over time.
+
+--------------------------------------------------------------------------------
+5. PUZZLES & TACTICS TRAINER (PHASE 5 - UPCOMING)
+--------------------------------------------------------------------------------
+- [ ] Daily Tactics Puzzle:
+      • 1 featured tactical puzzle per day for bonus rating points.
+- [ ] Puzzle Rush Mode:
+      • Solve as many tactical puzzles as possible in 3 minutes before 3 strikes.
+- [ ] Specialized Drills:
+      • Mate-in-1, Mate-in-2, Fork & Skewer drills, Endgame tablebases.
+
+--------------------------------------------------------------------------------
+6. AUDIO & VISUAL CUSTOMIZATION (PHASE 6 - UPCOMING)
+--------------------------------------------------------------------------------
+- [ ] Custom Board Themes:
+      • Wood, Marble, Neon Cyberpunk, Slate Dark, Glassmorphism skins.
+- [ ] Sound Effects (SFX):
+      • Realistic move, capture, check, checkmate, castle, and timer alert audio clips.
+- [ ] Custom Piece Sets:
+      • Classic Staunton, Neo Minimalist, Fantasy, Cyber SVG piece sets.
+
+--------------------------------------------------------------------------------
+Generated for Chess King Project. Keep this file updated as new features are added!
+================================================================================

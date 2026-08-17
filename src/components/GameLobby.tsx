@@ -12,6 +12,7 @@ import {
 } from '../lib/gameService';
 import { supabase } from '../lib/supabase';
 import { Users, Check, X, Eye, Play, Plus, MessageSquare, Send, Shield, Megaphone } from 'lucide-react';
+import NavDrawer from './NavDrawer';
 
 interface GameLobbyProps {
   player: Player;
@@ -20,6 +21,7 @@ interface GameLobbyProps {
   onViewProfile: (username: string) => void;
   onCreateChallenge: (mode?: 'open' | 'direct', targetUser?: string) => void;
   onOpenAdmin?: () => void;
+  onSelectOfflineDual: () => void;
 }
 
 interface ChatMessage {
@@ -35,6 +37,7 @@ export default function GameLobby({
   onViewProfile,
   onCreateChallenge,
   onOpenAdmin,
+  onSelectOfflineDual,
 }: GameLobbyProps) {
   // Data States
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
@@ -217,6 +220,13 @@ export default function GameLobby({
               <div className="text-[10px] text-slate-500">View Profile</div>
             </div>
           </div>
+          <NavDrawer
+            player={player}
+            profileId={profileId}
+            onViewProfile={onViewProfile}
+            onSelectOfflineDual={onSelectOfflineDual}
+            onOpenAdmin={onOpenAdmin}
+          />
         </div>
       </div>
 

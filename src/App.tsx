@@ -7,9 +7,9 @@ import GameLobby from './components/GameLobby';
 import GameView from './components/GameView';
 import AuthView from './components/AuthView';
 import ProfileView from './components/ProfileView';
-import SocialSidebar from './components/SocialSidebar';
 import ChallengeView from './components/ChallengeView';
 import AdminPanel from './components/AdminPanel';
+import OfflineGameView from './components/OfflineGameView';
 
 // ─── App-level view type ──────────────────────────────────────────────────────
 type AppView =
@@ -19,6 +19,7 @@ type AppView =
   | { screen: 'profile'; username: string }
   | { screen: 'challenge'; mode?: 'open' | 'direct'; targetUser?: string }
   | { screen: 'admin' }
+  | { screen: 'offline' }
   | { screen: 'loading' };
 
 // ─── URL → initial view ───────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ function resolveInitialView(hasPlayer: boolean = false): AppView {
     return { screen: 'challenge', mode, targetUser };
   }
   if (path === '/admin') return { screen: 'admin' };
+  if (path === '/offline') return { screen: 'offline' };
   return hasPlayer ? { screen: 'lobby' } : { screen: 'loading' };
 }
 
@@ -125,7 +127,7 @@ function App() {
   // ── 3. Screen resolution ──────────────────────────────────────────────────
   useEffect(() => {
     if (bootstrapping || loadingProfile) return;
-    
+
     // If no auth, always show auth regardless of URL intent
     if (!player) {
       setView({ screen: 'auth' });
@@ -176,7 +178,7 @@ function App() {
     if (targetUser) params.set('u', targetUser);
     const queryStr = params.toString();
     if (queryStr) url += `?${queryStr}`;
-    
+
     navigate(url, { screen: 'challenge', mode, targetUser });
   };
 
@@ -186,6 +188,10 @@ function App() {
 
   const handleOpenAdmin = () => {
     navigate('/admin', { screen: 'admin' });
+  };
+
+  const handleSelectOfflineDual = () => {
+    navigate('/offline', { screen: 'offline' });
   };
 
   // ── 5. Render ─────────────────────────────────────────────────────────────
@@ -267,25 +273,22 @@ function App() {
     return <AdminPanel onBack={handleBackToLobby} />;
   }
 
-  // Default: lobby  — wrap in flex row so sidebar sits next to content
+  if (view.screen === 'offline') {
+    return <OfflineGameView onBack={handleBackToLobby} />;
+  }
+
+  // Default: lobby
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
-      <div className="flex-1 overflow-y-auto">
-        <GameLobby
-          player={player}
-          profileId={profileId ?? player.id}
-          onGameStart={handleGameStart}
-          onViewProfile={handleViewProfile}
-          onCreateChallenge={handleCreateChallenge}
-          onOpenAdmin={handleOpenAdmin}
-        />
-      </div>
-      {profileId && (
-        <SocialSidebar
-          currentProfileId={profileId}
-          onViewProfile={handleViewProfile}
-        />
-      )}
+    <div className="min-h-screen bg-slate-950 text-slate-100 overflow-x-hidden">
+      <GameLobby
+        player={player}
+        profileId={profileId ?? player.id}
+        onGameStart={handleGameStart}
+        onViewProfile={handleViewProfile}
+        onCreateChallenge={handleCreateChallenge}
+        onOpenAdmin={handleOpenAdmin}
+        onSelectOfflineDual={handleSelectOfflineDual}
+      />
     </div>
   );
 }
