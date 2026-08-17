@@ -4,9 +4,9 @@ import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isChe
 
 // --- 1. PRESENCE & STATE MANAGEMENT ---
 
-export async function updatePlayerStatus(playerId: string, status: 'online' | 'busy') {
+export async function updatePlayerStatus(playerId: string, status: 'online' | 'busy' | 'offline') {
   await supabase
-    .from('players')
+    .from('profiles')
     .update({ 
       status, 
       last_seen: new Date().toISOString() 
@@ -14,13 +14,13 @@ export async function updatePlayerStatus(playerId: string, status: 'online' | 'b
     .eq('id', playerId);
 }
 
-// FIXED: also refresh last_seen so the lobby_players view keeps the row visible
+// Refresh last_seen & status in profiles table
 export async function updateHeartbeat(playerId: string) {
   await supabase
-    .from('players')
+    .from('profiles')
     .update({ 
       last_seen: new Date().toISOString(),
-      status: 'online'   // keep status fresh so a stale 'busy' row never blocks re-entry
+      status: 'online'
     })
     .eq('id', playerId);
 }

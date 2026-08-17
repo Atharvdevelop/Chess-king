@@ -53,13 +53,22 @@ function App() {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  // ── 0. Listen for back/forward browser history actions ─────────────────────
+  // ── 0. Listen for back/forward browser history actions & tab close ─────────
   useEffect(() => {
     const handlePopState = () => {
       setView(resolveInitialView(!!player));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, [player]);
+
+  useEffect(() => {
+    if (!player) return;
+    const handleUnload = () => {
+      updatePlayerStatus(player.id, 'offline');
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
   }, [player]);
 
   // ── 1. Session bootstrap ───────────────────────────────────────────────────
