@@ -171,15 +171,25 @@ export async function createChallenge(challengerId: string, challengedId: string
 export async function getPendingChallenges(playerId: string): Promise<Challenge[]> {
   const { data, error } = await supabase
     .from('challenges')
-    .select('*, challenger:players!challenger_id(username)')
+    .select('*')
     .eq('challenged_id', playerId)
     .eq('status', 'pending');
 
   if (error) throw error;
+  if (!data || data.length === 0) return [];
+
+  const challengerIds = Array.from(new Set(data.map(c => c.challenger_id)));
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .in('id', challengerIds);
+
+  const profileMap = new Map(profiles?.map(p => [p.id, p.username]) || []);
+
   return data.map(c => ({
     ...c,
-    challenger_username: (c.challenger as Record<string, unknown>)?.username || 'Unknown'
-  })) || [];
+    challenger_username: profileMap.get(c.challenger_id) || 'Unknown'
+  }));
 }
 
 export async function acceptChallenge(
