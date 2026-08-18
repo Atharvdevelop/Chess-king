@@ -190,7 +190,7 @@ export default function GameLobby({
       )}
 
       {/* Header */}
-      <div className="w-full max-w-6xl flex justify-between items-center mb-8 mt-2 z-10">
+      <div className="w-full max-w-6xl flex justify-between items-center mb-8 mt-2 z-40">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-white">
             Chess <span className="bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">King</span>
@@ -247,7 +247,7 @@ export default function GameLobby({
       )}
 
       {/* Two-Column Dashboard */}
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6 z-10 items-start">
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6 z-0 items-start">
         
         {/* LEFT COLUMN: Matchmaking CTA Cards, Pending Invites, Spectating list */}
         <div className="lg:col-span-2 space-y-6">

@@ -57,13 +57,13 @@ export default function NavDrawer({
       {isOpen && (
         <div
           onClick={() => setIsOpen(false)}
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 transition-opacity duration-300"
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] transition-opacity duration-300"
         />
       )}
 
       {/* Slide-over Drawer Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-slate-900/95 border-l border-slate-800/80 shadow-2xl backdrop-blur-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-slate-900/95 border-l border-slate-800/80 shadow-2xl backdrop-blur-2xl z-[9999] flex flex-col transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -236,7 +236,7 @@ export default function NavDrawer({
 
       {/* Social Modal Overlay */}
       {activeModal === 'social' && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[600px] max-h-[90vh]">
             <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
               <div className="flex items-center gap-2">
@@ -265,7 +265,7 @@ export default function NavDrawer({
 
       {/* Stats Modal Overlay */}
       {activeModal === 'stats' && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 text-center">
             <button
               onClick={() => setActiveModal(null)}
