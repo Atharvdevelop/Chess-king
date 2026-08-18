@@ -176,7 +176,7 @@ export default function GameLobby({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 lg:p-8 flex flex-col items-center relative antialiased text-slate-100">
+    <div className="w-full min-h-screen bg-slate-950 p-4 lg:p-8 flex flex-col items-center relative antialiased text-slate-100 overflow-y-auto custom-scrollbar">
       
       {/* Decorative radial glows */}
       <div className="absolute top-0 left-0 w-80 h-80 bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>

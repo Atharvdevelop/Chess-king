@@ -298,7 +298,7 @@ function App() {
 
   // Default: lobby
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-slate-950 text-slate-100 overflow-x-hidden overflow-y-auto custom-scrollbar">
       <GameLobby
         player={player}
         profileId={profileId ?? player.id}
