@@ -26,11 +26,33 @@ export async function updateHeartbeat(playerId: string) {
 }
 
 export async function createOrGetPlayer(userId: string, username: string): Promise<Player> {
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from('profiles')
+      .update({ status: 'online', last_seen: new Date().toISOString() })
+      .eq('id', userId);
+    return { ...existing, status: 'online', last_seen: new Date().toISOString() };
+  }
+
   const { data, error } = await supabase
-    .from('players')
+    .from('profiles')
     .upsert(
-      { id: userId, username, status: 'online', last_seen: new Date().toISOString() },
-      { onConflict: 'username' }
+      {
+        id: userId,
+        username,
+        status: 'online',
+        last_seen: new Date().toISOString(),
+        rating: 1200,
+        is_banned: false,
+        bio: ''
+      },
+      { onConflict: 'id' }
     )
     .select()
     .single();
@@ -51,10 +73,10 @@ export async function getLobbyPlayers(currentPlayerId: string): Promise<Player[]
 
   if (error) {
     // Graceful fallback: if the view doesn't exist yet (migration not run),
-    // fall back to a direct players query so the UI isn't completely broken.
-    console.warn('lobby_players view missing — falling back to players table:', error.message);
+    // fall back to a direct profiles query so the UI isn't completely broken.
+    console.warn('lobby_players view missing — falling back to profiles table:', error.message);
     const { data: fallback, error: fbErr } = await supabase
-      .from('players')
+      .from('profiles')
       .select('*')
       .neq('id', currentPlayerId)
       .neq('status', 'busy')
@@ -67,7 +89,7 @@ export async function getLobbyPlayers(currentPlayerId: string): Promise<Player[]
 
 export async function getAllMembers(): Promise<Player[]> {
   const { data, error } = await supabase
-    .from('players')
+    .from('profiles')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -201,7 +223,7 @@ export async function acceptChallenge(
   if (gameError) throw gameError;
 
   await supabase
-    .from('players')
+    .from('profiles')
     .update({ status: 'busy' })
     .in('id', [playerId, challengeData.challenger_id]);
 

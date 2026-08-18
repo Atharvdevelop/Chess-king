@@ -149,7 +149,6 @@ export default function ProfileView({
     setSavingBio(true);
     try {
       await supabase.from('profiles').update({ bio: bioText }).eq('id', profile.id);
-      await supabase.from('players').update({ bio: bioText }).eq('id', profile.id);
       setProfile({ ...profile, bio: bioText });
       setIsEditingBio(false);
     } catch (err) {

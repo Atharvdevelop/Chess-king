@@ -144,7 +144,7 @@ export default function ChallengeView({
       // 1. Resolve opponent's player uuid from the players table
       //    (challenges table references players.id, not profiles.id)
       const { data: opponentPlayer, error: opErr } = await supabase
-        .from('players')
+        .from('profiles')
         .select('id')
         .eq('username', target)
         .maybeSingle();

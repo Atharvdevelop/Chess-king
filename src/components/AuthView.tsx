@@ -184,15 +184,10 @@ export default function AuthView({ onAuthSuccess, initialMode }: AuthViewProps) 
         full_name: regFullName.trim(),
         email: regEmail.trim(),
         created_at: new Date().toISOString(),
+        status: 'online',
+        last_seen: new Date().toISOString(),
       });
       if (profileError) throw profileError;
-
-      await supabase.from('players').upsert({
-        id: data.user.id,
-        username: regUsername.trim(),
-        status: 'online',
-        last_seen: new Date().toISOString()
-      }, { onConflict: 'id' });
 
       if (data.session) {
         onAuthSuccess(data.user.id, regUsername.trim());
