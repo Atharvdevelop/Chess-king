@@ -66,9 +66,10 @@ Deno.serve(async (req: Request) => {
     const { data: authData, error: authErr } = await adminClient.auth.admin.listUsers({ perPage: 500 });
     if (authErr) return json({ error: authErr.message }, 500);
 
-    const { data: profiles } = await adminClient
+    const { data: profiles, error: profErr } = await adminClient
       .from('profiles')
       .select('id, username, created_at, is_banned, rating, bio');
+    if (profErr) return json({ error: profErr.message }, 500);
 
     const profileMap = new Map((profiles as ProfileRow[] ?? []).map((p: ProfileRow) => [p.id, p]));
 
@@ -91,7 +92,7 @@ Deno.serve(async (req: Request) => {
   // 2. PLATFORM OVERVIEW STATS
   if (action === 'get_platform_stats') {
     const { count: totalUsers } = await adminClient.from('profiles').select('*', { count: 'exact', head: true });
-    const { count: onlinePlayers } = await adminClient.from('players').select('*', { count: 'exact', head: true }).gt('last_seen', new Date(Date.now() - 30000).toISOString());
+    const { count: onlinePlayers } = await adminClient.from('profiles').select('*', { count: 'exact', head: true }).gt('last_seen', new Date(Date.now() - 30000).toISOString());
     const { count: totalGames } = await adminClient.from('games').select('*', { count: 'exact', head: true });
     const { count: activeGames } = await adminClient.from('games').select('*', { count: 'exact', head: true }).eq('status', 'active');
     const { count: bannedCount } = await adminClient.from('profiles').select('*', { count: 'exact', head: true }).eq('is_banned', true);
@@ -114,13 +115,17 @@ Deno.serve(async (req: Request) => {
     const { userId } = body;
     if (!userId) return json({ error: 'userId is required' }, 400);
 
-    const { data: profile } = await adminClient.from('profiles').select('*').eq('id', userId).maybeSingle();
-    const { data: games } = await adminClient
+    const { data: profile, error: profErr } = await adminClient.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (profErr) return json({ error: profErr.message }, 500);
+
+    // Fetch recent matches (last 50)
+    const { data: games, error: gamesErr } = await adminClient
       .from('games')
       .select('*')
       .or(`white_player_id.eq.${userId},black_player_id.eq.${userId}`)
       .order('created_at', { ascending: false })
       .limit(50);
+    if (gamesErr) return json({ error: gamesErr.message }, 500);
 
     const matchHistory = (games || []).map((g: any) => {
       const isWhite = g.white_player_id === userId;
@@ -142,16 +147,38 @@ Deno.serve(async (req: Request) => {
       };
     });
 
-    const wins = matchHistory.filter(m => m.result === 'WIN').length;
-    const losses = matchHistory.filter(m => m.result === 'LOSS').length;
-    const draws = matchHistory.filter(m => m.result === 'DRAW').length;
+    // Query lifetime finished games for accurate lifetime stats
+    const { data: allFinishedGames, error: allGamesErr } = await adminClient
+      .from('games')
+      .select('white_player_id, black_player_id, winner')
+      .or(`white_player_id.eq.${userId},black_player_id.eq.${userId}`)
+      .eq('status', 'finished');
+
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+
+    if (!allGamesErr && allFinishedGames) {
+      for (const g of allFinishedGames) {
+        const isWhite = g.white_player_id === userId;
+        if (g.winner === 'draw') draws++;
+        else if ((g.winner === 'white' && isWhite) || (g.winner === 'black' && !isWhite)) wins++;
+        else if (g.winner) losses++;
+      }
+    } else {
+      wins = matchHistory.filter((m: any) => m.result === 'WIN').length;
+      losses = matchHistory.filter((m: any) => m.result === 'LOSS').length;
+      draws = matchHistory.filter((m: any) => m.result === 'DRAW').length;
+    }
+
     const totalFinished = wins + losses + draws;
     const winRate = totalFinished > 0 ? Math.round((wins / totalFinished) * 100) : 0;
+    const totalGames = allFinishedGames ? allFinishedGames.length : (games?.length ?? 0);
 
     return json({
       profile,
       stats: {
-        totalGames: games?.length ?? 0,
+        totalGames,
         wins,
         losses,
         draws,
@@ -167,10 +194,12 @@ Deno.serve(async (req: Request) => {
     if (!userId) return json({ error: 'userId is required' }, 400);
 
     // Update Auth User Ban
-    await adminClient.auth.admin.updateUserById(userId, { ban_duration: '876000h' });
-    // Update Profiles & Players tables
-    await adminClient.from('profiles').update({ is_banned: true }).eq('id', userId);
-    await adminClient.from('players').update({ is_banned: true, status: 'banned' }).eq('id', userId);
+    const { error: authErr } = await adminClient.auth.admin.updateUserById(userId, { ban_duration: '876000h' });
+    if (authErr) return json({ error: authErr.message }, 500);
+
+    // Update Profiles table
+    const { error: profErr } = await adminClient.from('profiles').update({ is_banned: true, status: 'banned' }).eq('id', userId);
+    if (profErr) return json({ error: profErr.message }, 500);
 
     return json({ success: true, message: 'User has been banned.' });
   }
@@ -181,10 +210,12 @@ Deno.serve(async (req: Request) => {
     if (!userId) return json({ error: 'userId is required' }, 400);
 
     // Remove Auth User Ban
-    await adminClient.auth.admin.updateUserById(userId, { ban_duration: 'none' });
-    // Update Profiles & Players tables
-    await adminClient.from('profiles').update({ is_banned: false }).eq('id', userId);
-    await adminClient.from('players').update({ is_banned: false, status: 'online' }).eq('id', userId);
+    const { error: authErr } = await adminClient.auth.admin.updateUserById(userId, { ban_duration: 'none' });
+    if (authErr) return json({ error: authErr.message }, 500);
+
+    // Update Profiles table (do not force status to 'online')
+    const { error: profErr } = await adminClient.from('profiles').update({ is_banned: false, status: 'offline' }).eq('id', userId);
+    if (profErr) return json({ error: profErr.message }, 500);
 
     return json({ success: true, message: 'User has been unbanned.' });
   }
@@ -194,10 +225,11 @@ Deno.serve(async (req: Request) => {
     const { userId } = body;
     if (!userId) return json({ error: 'userId is required' }, 400);
 
-    await adminClient.from('profiles').delete().eq('id', userId);
-    await adminClient.from('players').delete().eq('id', userId);
-    const { error } = await adminClient.auth.admin.deleteUser(userId);
-    if (error) return json({ error: error.message }, 500);
+    const { error: profErr } = await adminClient.from('profiles').delete().eq('id', userId);
+    if (profErr) return json({ error: profErr.message }, 500);
+
+    const { error: authErr } = await adminClient.auth.admin.deleteUser(userId);
+    if (authErr) return json({ error: authErr.message }, 500);
 
     return json({ success: true, message: 'User deleted successfully.' });
   }
@@ -222,30 +254,32 @@ Deno.serve(async (req: Request) => {
     if (rating !== undefined) updates.rating = rating;
     if (bio !== undefined) updates.bio = bio;
 
-    await adminClient.from('profiles').update(updates).eq('id', userId);
-    await adminClient.from('players').update(updates).eq('id', userId);
+    const { error: profErr } = await adminClient.from('profiles').update(updates).eq('id', userId);
+    if (profErr) return json({ error: profErr.message }, 500);
 
     return json({ success: true, message: 'Player details updated.' });
   }
 
   // 9. LIVE GAMES
   if (action === 'get_live_games') {
-    const { data: games } = await adminClient
+    const { data: games, error: gamesErr } = await adminClient
       .from('games')
       .select('*')
       .eq('status', 'active')
       .order('created_at', { ascending: false });
 
+    if (gamesErr) return json({ error: gamesErr.message }, 500);
     return json({ games: games || [] });
   }
 
   // 10. FAIR PLAY REPORTS
   if (action === 'get_reports') {
-    const { data: reports } = await adminClient
+    const { data: reports, error: repErr } = await adminClient
       .from('reports')
       .select('*')
       .order('created_at', { ascending: false });
 
+    if (repErr) return json({ error: repErr.message }, 500);
     return json({ reports: reports || [] });
   }
 
@@ -253,7 +287,9 @@ Deno.serve(async (req: Request) => {
     const { reportId, status } = body;
     if (!reportId || !status) return json({ error: 'reportId and status are required' }, 400);
 
-    await adminClient.from('reports').update({ status }).eq('id', reportId);
+    const { error: repErr } = await adminClient.from('reports').update({ status }).eq('id', reportId);
+    if (repErr) return json({ error: repErr.message }, 500);
+
     return json({ success: true, message: `Report marked as ${status}.` });
   }
 
@@ -279,14 +315,16 @@ Deno.serve(async (req: Request) => {
       winner = 'draw';
     }
 
-    const { data: game } = await adminClient.from('games').select('white_player_id, black_player_id').eq('id', gameId).single();
+    const { data: game, error: gameErr } = await adminClient.from('games').select('white_player_id, black_player_id').eq('id', gameId).single();
+    if (gameErr) return json({ error: gameErr.message }, 500);
 
-    await adminClient.from('games').update({ status, winner }).eq('id', gameId);
+    const { error: updateErr } = await adminClient.from('games').update({ status, winner }).eq('id', gameId);
+    if (updateErr) return json({ error: updateErr.message }, 500);
 
     if (game) {
       const playerIds = [game.white_player_id, game.black_player_id].filter(Boolean);
       if (playerIds.length > 0) {
-        await adminClient.from('players').update({ status: 'online' }).in('id', playerIds);
+        await adminClient.from('profiles').update({ status: 'online' }).in('id', playerIds);
       }
     }
 
