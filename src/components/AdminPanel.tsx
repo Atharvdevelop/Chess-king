@@ -64,6 +64,7 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [checkingInitialAuth, setCheckingInitialAuth] = useState(true);
 
   // ── Active Tab ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'users' | 'spectate' | 'reports' | 'broadcast'>('users');
@@ -99,16 +100,27 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcastSent, setBroadcastSent] = useState(false);
 
-  // ── Call Edge Function ─────────────────────────────────────────────────────
-  const callAdmin = useCallback(async (body: object) => {
+  // ── Call Edge Function (JWT Bearer + Secret Fallback) ───────────────────────
+  const callAdmin = useCallback(async (body: object, overrideSecret?: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const secretToUse = overrideSecret !== undefined ? overrideSecret : adminSecret;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (secretToUse) {
+      headers['x-admin-secret'] = secretToUse;
+    }
+
     let res: Response;
     try {
       res = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-secret': adminSecret,
-        },
+        headers,
         body: JSON.stringify(body),
       });
     } catch (err: any) {
@@ -127,32 +139,63 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
   }, [adminSecret]);
 
   // ── Fetch Dashboard Data ───────────────────────────────────────────────────
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (overrideSecret?: string) => {
     setUsersLoading(true);
     try {
       // 1. Fetch Users
-      const userRes = await callAdmin({ action: 'list_users' });
+      const userRes = await callAdmin({ action: 'list_users' }, overrideSecret);
       setUsers(userRes.users || []);
 
       // 2. Fetch Stats
-      const statsRes = await callAdmin({ action: 'get_platform_stats' });
+      const statsRes = await callAdmin({ action: 'get_platform_stats' }, overrideSecret);
       setStats(statsRes.stats || null);
 
       // 3. Fetch Live Games
-      const gamesRes = await callAdmin({ action: 'get_live_games' });
+      const gamesRes = await callAdmin({ action: 'get_live_games' }, overrideSecret);
       setLiveGames(gamesRes.games || []);
 
       // 4. Fetch Reports
-      const reportsRes = await callAdmin({ action: 'get_reports' });
+      const reportsRes = await callAdmin({ action: 'get_reports' }, overrideSecret);
       setReports(reportsRes.reports || []);
     } catch (err: any) {
       setActionNotice({ type: 'error', msg: err.message });
+      throw err;
     } finally {
       setUsersLoading(false);
     }
   }, [callAdmin]);
 
-  // ── Handle Login ───────────────────────────────────────────────────────────
+  // ── Auto-Authenticate via User JWT on Mount ────────────────────────────────
+  useEffect(() => {
+    let isMounted = true;
+
+    const tryJwtAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await callAdmin({ action: 'check_admin' });
+          if (isMounted) {
+            setAuthenticated(true);
+            fetchDashboardData();
+          }
+        }
+      } catch {
+        // Not recognized as admin via JWT alone; stay on login screen for secret entry
+      } finally {
+        if (isMounted) {
+          setCheckingInitialAuth(false);
+        }
+      }
+    };
+
+    tryJwtAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // ── Handle Manual Login Submit ─────────────────────────────────────────────
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminSecret.trim() || authLoading) return;
@@ -160,18 +203,7 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
     setAuthError('');
 
     try {
-      const userRes = await callAdmin({ action: 'list_users' });
-      setUsers(userRes.users || []);
-
-      const statsRes = await callAdmin({ action: 'get_platform_stats' });
-      setStats(statsRes.stats || null);
-
-      const gamesRes = await callAdmin({ action: 'get_live_games' });
-      setLiveGames(gamesRes.games || []);
-
-      const reportsRes = await callAdmin({ action: 'get_reports' });
-      setReports(reportsRes.reports || []);
-
+      await fetchDashboardData(adminSecret);
       setAuthenticated(true);
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed');
@@ -309,6 +341,20 @@ export default function AdminPanel({ onBack }: AdminPanelProps) {
     if (filterMode === 'banned') return matchSearch && u.is_banned;
     return matchSearch;
   });
+
+  // ── INITIAL AUTH VERIFICATION ──────────────────────────────────────────────
+  if (checkingInitialAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 antialiased">
+        <div className="w-12 h-12 rounded-2xl bg-violet-600/10 border border-violet-500/30 text-violet-400 flex items-center justify-center mb-4 shadow-lg shadow-violet-600/10 animate-pulse">
+          <Shield size={24} />
+        </div>
+        <p className="text-xs font-bold text-slate-400 font-mono flex items-center gap-2">
+          <Loader2 size={14} className="animate-spin text-violet-400" /> Verifying Admin Authorization...
+        </p>
+      </div>
+    );
+  }
 
   // ── LOGIN SCREEN ──────────────────────────────────────────────────────────
   if (!authenticated) {

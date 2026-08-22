@@ -37,20 +37,80 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const expectedSecret = Deno.env.get('CHESS_KING_ADMIN_SECRET') ?? 'change-me';
+  const expectedSecret = Deno.env.get('CHESS_KING_ADMIN_SECRET');
 
   if (!supabaseUrl || !serviceRoleKey) {
     return json({ error: 'Server misconfiguration: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing.' }, 500);
   }
 
-  const adminSecret = req.headers.get('x-admin-secret');
-  if (!adminSecret || adminSecret !== expectedSecret) {
-    return json({ error: 'Unauthorized — wrong admin secret' }, 401);
-  }
-
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
+
+  let isAuthorized = false;
+  let callerUserId: string | null = null;
+
+  // 1. Check User JWT Bearer Token
+  const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+  if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+    const jwt = authHeader.substring(7).trim();
+    if (jwt) {
+      const { data: userData, error: userErr } = await adminClient.auth.getUser(jwt);
+      if (!userErr && userData?.user) {
+        const user = userData.user;
+        callerUserId = user.id;
+
+        // Check if user has admin role in app_metadata / user_metadata
+        if (
+          user.app_metadata?.role === 'admin' ||
+          user.user_metadata?.role === 'admin' ||
+          user.app_metadata?.is_admin === true
+        ) {
+          isAuthorized = true;
+        }
+
+        // Check user_roles table
+        if (!isAuthorized) {
+          const { data: roleRow } = await adminClient
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id)
+            .eq('role', 'admin')
+            .maybeSingle();
+
+          if (roleRow) {
+            isAuthorized = true;
+          }
+        }
+
+        // Check profiles table for is_admin or role === 'admin'
+        if (!isAuthorized) {
+          const { data: profRow } = await adminClient
+            .from('profiles')
+            .select('is_admin, role')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profRow?.is_admin === true || profRow?.role === 'admin') {
+            isAuthorized = true;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Check x-admin-secret fallback header
+  const adminSecret = req.headers.get('x-admin-secret');
+  if (!isAuthorized && expectedSecret && adminSecret && adminSecret === expectedSecret) {
+    isAuthorized = true;
+  }
+
+  if (!isAuthorized) {
+    if (callerUserId) {
+      return json({ error: 'Forbidden: Your account does not have administrator privileges.' }, 403);
+    }
+    return json({ error: 'Unauthorized: Valid admin JWT or secret required.' }, 401);
+  }
 
   let body: any;
   try {
@@ -60,6 +120,11 @@ Deno.serve(async (req: Request) => {
   }
 
   const { action } = body;
+
+  // Lightweight check admin action
+  if (action === 'check_admin') {
+    return json({ authorized: true, user_id: callerUserId });
+  }
 
   // 1. LIST USERS
   if (action === 'list_users') {
