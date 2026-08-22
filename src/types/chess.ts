@@ -59,6 +59,9 @@ export interface Game {
   white_player_username?: string;
   black_player_username?: string;
   time_format?: string;
+  en_passant_target?: Position | null;
+  halfmove_clock?: number;
+  position_history?: string[];
 }
 
 export interface Move {

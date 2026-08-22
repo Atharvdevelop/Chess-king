@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react';
-import { BoardState, PieceColor, Position } from '../types/chess';
-import { positionToKey, isValidMove, isKingInCheck } from '../lib/chessLogic';
+import { BoardState, PieceColor, Position, PieceType } from '../types/chess';
+import { positionToKey, isValidMove, isKingInCheck, isPromotionMove } from '../lib/chessLogic';
+import { X } from 'lucide-react';
 
 interface ChessBoardProps {
   board: BoardState;
   currentTurn: PieceColor;
   playerColor: PieceColor | null;
-  onMove?: (from: Position, to: Position) => void;
+  onMove?: (from: Position, to: Position, promotion?: PieceType) => void;
   isActive?: boolean;
   lastMoveFrom?: Position | null;
   lastMoveTo?: Position | null;
+  enPassantTarget?: Position | null;
 }
 
 export default function ChessBoard({
@@ -20,11 +22,13 @@ export default function ChessBoard({
   isActive = false,
   lastMoveFrom,
   lastMoveTo,
+  enPassantTarget = null,
 }: ChessBoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
   const [validMoves, setValidMoves] = useState<Position[]>([]);
   const [draggedPiece, setDraggedPiece] = useState<Position | null>(null);
   const [touchDragState, setTouchDragState] = useState<{ x: number; y: number; pieceSrc: string } | null>(null);
+  const [pendingPromotion, setPendingPromotion] = useState<{ from: Position; to: Position } | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
 
   const calculateValidMoves = (from: Position) => {
@@ -32,7 +36,7 @@ export default function ChessBoard({
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
         const to: Position = { row, col };
-        if (isValidMove(board, from, to, currentTurn)) {
+        if (isValidMove(board, from, to, currentTurn, enPassantTarget)) {
           moves.push(to);
         }
       }
@@ -41,8 +45,18 @@ export default function ChessBoard({
     return moves;
   };
 
+  const attemptMove = (from: Position, to: Position) => {
+    if (isPromotionMove(board, from, to)) {
+      setPendingPromotion({ from, to });
+    } else {
+      onMove(from, to);
+    }
+    setSelectedSquare(null);
+    setValidMoves([]);
+  };
+
   const handleSquareClick = (row: number, col: number) => {
-    if (!isActive || !playerColor || currentTurn !== playerColor) return;
+    if (!isActive || !playerColor || currentTurn !== playerColor || pendingPromotion) return;
 
     const clickedPos: Position = { row, col };
     const piece = board[positionToKey(clickedPos)];
@@ -53,9 +67,7 @@ export default function ChessBoard({
       );
 
       if (isValidMoveAttempt) {
-        onMove(selectedSquare, clickedPos);
-        setSelectedSquare(null);
-        setValidMoves([]);
+        attemptMove(selectedSquare, clickedPos);
       } else if (piece && piece.color === playerColor) {
         setSelectedSquare(clickedPos);
         calculateValidMoves(clickedPos);
@@ -71,7 +83,7 @@ export default function ChessBoard({
 
   // HTML5 Drag Handlers (Mouse)
   const handleDragStart = (e: React.DragEvent, row: number, col: number) => {
-    if (!isActive || !playerColor || currentTurn !== playerColor) {
+    if (!isActive || !playerColor || currentTurn !== playerColor || pendingPromotion) {
       e.preventDefault();
       return;
     }
@@ -98,7 +110,7 @@ export default function ChessBoard({
       );
 
       if (isValidMoveAttempt) {
-        onMove(draggedPiece, { row: toRow, col: toCol });
+        attemptMove(draggedPiece, { row: toRow, col: toCol });
       }
 
       setDraggedPiece(null);
@@ -109,7 +121,7 @@ export default function ChessBoard({
 
   // Touch Handlers (Mobile & Tablets)
   const handleTouchStart = (e: React.TouchEvent, row: number, col: number) => {
-    if (!isActive || !playerColor || currentTurn !== playerColor) return;
+    if (!isActive || !playerColor || currentTurn !== playerColor || pendingPromotion) return;
 
     const piece = board[positionToKey({ row, col })];
     if (piece && piece.color === playerColor) {
@@ -126,7 +138,6 @@ export default function ChessBoard({
         pieceSrc
       });
 
-      // Prevent scrolling page while dragging a piece
       if (computedMoves.length > 0) {
         e.stopPropagation();
       }
@@ -153,7 +164,7 @@ export default function ChessBoard({
         if (toRow >= 0 && toCol >= 0) {
           const isValidAttempt = validMoves.some(pos => pos.row === toRow && pos.col === toCol);
           if (isValidAttempt) {
-            onMove(draggedPiece, { row: toRow, col: toCol });
+            attemptMove(draggedPiece, { row: toRow, col: toCol });
           }
         }
       }
@@ -163,6 +174,12 @@ export default function ChessBoard({
       setSelectedSquare(null);
       setValidMoves([]);
     }
+  };
+
+  const handlePromotionSelect = (chosenPiece: PieceType) => {
+    if (!pendingPromotion) return;
+    onMove(pendingPromotion.from, pendingPromotion.to, chosenPiece);
+    setPendingPromotion(null);
   };
 
   const isSquareSelected = (row: number, col: number) => {
@@ -176,13 +193,13 @@ export default function ChessBoard({
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
-  // Check if current turn player's king is in check
   const inCheck = isKingInCheck(board, currentTurn);
+  const activeColor = playerColor || currentTurn;
 
   return (
     <div
       ref={boardRef}
-      className="grid grid-cols-8 grid-rows-8 gap-0 w-full h-full select-none touch-none relative"
+      className="grid grid-cols-8 grid-rows-8 gap-0 w-full h-full select-none touch-none relative rounded-lg overflow-hidden"
       onDragOver={handleDragOver}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -264,6 +281,41 @@ export default function ChessBoard({
             </div>
           );
         })
+      )}
+
+      {/* Underpromotion 4-Choice Modal Overlay */}
+      {pendingPromotion && (
+        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-md z-40 flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-4 shadow-2xl max-w-[280px] w-full text-center relative">
+            <button
+              onClick={() => setPendingPromotion(null)}
+              className="absolute top-2.5 right-2.5 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              title="Cancel promotion"
+            >
+              <X size={16} />
+            </button>
+            <h3 className="text-xs font-black uppercase tracking-wider text-white mb-1">Pawn Promotion</h3>
+            <p className="text-[11px] text-slate-400 mb-3">Choose a piece to promote to:</p>
+            <div className="grid grid-cols-4 gap-2">
+              {(['queen', 'knight', 'rook', 'bishop'] as const).map((pType) => (
+                <button
+                  key={pType}
+                  onClick={() => handlePromotionSelect(pType)}
+                  className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-950 hover:bg-violet-600/20 border border-slate-800 hover:border-violet-500 transition-all group active:scale-95"
+                >
+                  <img
+                    src={`/assets/pieces/${activeColor === 'white' ? 'w' : 'b'}_${pType}.svg`}
+                    alt={pType}
+                    className="w-10 h-10 object-contain drop-shadow-md group-hover:scale-110 transition-transform"
+                  />
+                  <span className="text-[9px] font-bold text-slate-400 group-hover:text-violet-300 capitalize mt-1">
+                    {pType}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Touch Floating Drag Ghost Element */}

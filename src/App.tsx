@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { Player } from './types/chess';
 import { createOrGetPlayer, updatePlayerStatus } from './lib/gameService';
@@ -6,10 +6,22 @@ import { supabase } from './lib/supabase';
 import GameLobby from './components/GameLobby';
 import GameView from './components/GameView';
 import AuthView from './components/AuthView';
-import ProfileView from './components/ProfileView';
-import ChallengeView from './components/ChallengeView';
-import AdminPanel from './components/AdminPanel';
-import OfflineGameView from './components/OfflineGameView';
+import { Loader2 } from 'lucide-react';
+
+// Route-Level Code Splitting (React.lazy)
+const ProfileView = lazy(() => import('./components/ProfileView'));
+const ChallengeView = lazy(() => import('./components/ChallengeView'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const OfflineGameView = lazy(() => import('./components/OfflineGameView'));
+
+function ViewSuspenseFallback() {
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 font-mono text-xs gap-3">
+      <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+      <span>Loading View...</span>
+    </div>
+  );
+}
 
 // ─── App-level view type ──────────────────────────────────────────────────────
 type AppView =
@@ -266,34 +278,46 @@ function App() {
 
   if (view.screen === 'profile') {
     return (
-      <ProfileView
-        targetUsername={view.username}
-        currentPlayer={player}
-        onBackToLobby={handleBackToLobby}
-        onAnalyzeGame={handleAnalyzeGame}
-      />
+      <Suspense fallback={<ViewSuspenseFallback />}>
+        <ProfileView
+          targetUsername={view.username}
+          currentPlayer={player}
+          onBackToLobby={handleBackToLobby}
+          onAnalyzeGame={handleAnalyzeGame}
+        />
+      </Suspense>
     );
   }
 
   if (view.screen === 'challenge') {
     return (
-      <ChallengeView
-        initialMode={view.mode}
-        initialTargetUser={view.targetUser}
-        currentPlayer={player}
-        profileId={profileId ?? player.id}
-        onBackToLobby={handleBackToLobby}
-        onGameStart={handleGameStart}
-      />
+      <Suspense fallback={<ViewSuspenseFallback />}>
+        <ChallengeView
+          initialMode={view.mode}
+          initialTargetUser={view.targetUser}
+          currentPlayer={player}
+          profileId={profileId ?? player.id}
+          onBackToLobby={handleBackToLobby}
+          onGameStart={handleGameStart}
+        />
+      </Suspense>
     );
   }
 
   if (view.screen === 'admin') {
-    return <AdminPanel onBack={handleBackToLobby} />;
+    return (
+      <Suspense fallback={<ViewSuspenseFallback />}>
+        <AdminPanel onBack={handleBackToLobby} />
+      </Suspense>
+    );
   }
 
   if (view.screen === 'offline') {
-    return <OfflineGameView onBack={handleBackToLobby} />;
+    return (
+      <Suspense fallback={<ViewSuspenseFallback />}>
+        <OfflineGameView onBack={handleBackToLobby} />
+      </Suspense>
+    );
   }
 
   // Default: lobby

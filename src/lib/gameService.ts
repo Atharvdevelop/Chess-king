@@ -1,6 +1,17 @@
 import { supabase } from './supabase';
-import { Game, Player, Move, PieceColor, Position, Challenge } from '../types/chess';
-import { createInitialBoard, makeMove, positionToAlgebraic, positionToKey, isCheckmate, isStalemate, isKingInCheck } from './chessLogic';
+import { Game, Player, Move, PieceColor, Position, Challenge, PieceType } from '../types/chess';
+import { 
+  createInitialBoard, 
+  makeMove, 
+  positionToAlgebraic, 
+  positionToKey, 
+  isCheckmate, 
+  isStalemate, 
+  isKingInCheck,
+  getBoardFen,
+  isThreefoldRepetition,
+  isFiftyMoveRule
+} from './chessLogic';
 
 // --- 1. PRESENCE & STATE MANAGEMENT ---
 
@@ -285,6 +296,22 @@ export function subscribeToChallengeAccepted(
     .subscribe();
 }
 
+function normalizeGame(game: any): Game | null {
+  if (!game) return null;
+  let parsedEnPassant: Position | null = null;
+  if (game.en_passant_target) {
+    if (typeof game.en_passant_target === 'string' && game.en_passant_target.includes(',')) {
+      parsedEnPassant = keyToPosition(game.en_passant_target);
+    } else if (typeof game.en_passant_target === 'object' && 'row' in game.en_passant_target) {
+      parsedEnPassant = game.en_passant_target;
+    }
+  }
+  return {
+    ...game,
+    en_passant_target: parsedEnPassant,
+  };
+}
+
 export function subscribeToGame(gameId: string, callback: (game: Game) => void) {
   return supabase
     .channel(`game:${gameId}`)
@@ -294,7 +321,8 @@ export function subscribeToGame(gameId: string, callback: (game: Game) => void) 
       table: 'games', 
       filter: `id=eq.${gameId}` 
     }, (payload) => {
-      callback(payload.new as Game);
+      const game = normalizeGame(payload.new);
+      if (game) callback(game);
     })
     .subscribe();
 }
@@ -309,7 +337,7 @@ export async function getGame(gameId: string): Promise<Game | null> {
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return normalizeGame(data);
 }
 
 export async function makeGameMove(
@@ -317,30 +345,52 @@ export async function makeGameMove(
   playerId: string,
   from: Position,
   to: Position,
-  currentGame: Game
+  currentGame: Game,
+  promotion: PieceType = 'queen'
 ): Promise<Game> {
   const piece = currentGame.board_state[positionToKey(from)];
   if (!piece) throw new Error('No piece at source position');
 
   if (!playerId) throw new Error('Player ID is required to make a move');
 
-  const { newBoard, capturedPiece } = makeMove(currentGame.board_state, from, to);
+  const { newBoard, capturedPiece, newEnPassantTarget, isPromotion } = makeMove(
+    currentGame.board_state,
+    from,
+    to,
+    promotion,
+    currentGame.en_passant_target
+  );
   const nextTurn: PieceColor = currentGame.current_turn === 'white' ? 'black' : 'white';
 
-  const moveNotation = `${positionToAlgebraic(from)}-${positionToAlgebraic(to)}`;
+  const promoSuffix = isPromotion ? `=${promotion[0].toUpperCase()}` : '';
+  const moveNotation = `${positionToAlgebraic(from)}-${positionToAlgebraic(to)}${promoSuffix}`;
   
-  const isCheck = isCheckmate(newBoard, nextTurn) || isKingInCheck(newBoard, nextTurn);
-  const isCheckmateVal = isCheckmate(newBoard, nextTurn);
+  const isCheckVal = isCheckmate(newBoard, nextTurn, newEnPassantTarget) || isKingInCheck(newBoard, nextTurn);
+  const isCheckmateVal = isCheckmate(newBoard, nextTurn, newEnPassantTarget);
+  const isStalemateVal = isStalemate(newBoard, nextTurn, newEnPassantTarget);
+
+  // Track 50-move rule & position history
+  const isPawnOrCapture = piece.type === 'pawn' || !!capturedPiece;
+  const nextHalfmoveClock = isPawnOrCapture ? 0 : (currentGame.halfmove_clock || 0) + 1;
+  const currentFen = getBoardFen(newBoard, nextTurn, newEnPassantTarget);
+  const nextPositionHistory = [...(currentGame.position_history || []), currentFen];
+
+  const isThreefold = isThreefoldRepetition(nextPositionHistory);
+  const isFiftyMove = isFiftyMoveRule(nextHalfmoveClock);
 
   const { data, error } = await supabase.rpc('make_game_move', {
-    p_game_id:       gameId,
-    p_player_id:     playerId,
-    p_new_board:     newBoard,
-    p_move_notation: moveNotation,
-    p_piece:         piece.type,
-    p_captured_piece: capturedPiece?.type || null,
-    p_is_check:      isCheck,
-    p_is_checkmate:  isCheckmateVal
+    p_game_id:           gameId,
+    p_player_id:         playerId,
+    p_new_board:         newBoard,
+    p_move_notation:     moveNotation,
+    p_piece:             piece.type,
+    p_captured_piece:    capturedPiece?.type || null,
+    p_is_check:          isCheckVal,
+    p_is_checkmate:      isCheckmateVal,
+    p_promotion:         isPromotion ? promotion : null,
+    p_en_passant_target: newEnPassantTarget ? `${newEnPassantTarget.row},${newEnPassantTarget.col}` : null,
+    p_halfmove_clock:    nextHalfmoveClock,
+    p_position_history:  nextPositionHistory
   });
 
   if (error) {
@@ -353,13 +403,20 @@ export async function makeGameMove(
     throw error;
   }
 
-  const returnedGame = data as unknown as Game;
+  const returnedGame = normalizeGame(data) || {
+    ...currentGame,
+    board_state: newBoard,
+    current_turn: nextTurn,
+    en_passant_target: newEnPassantTarget,
+    halfmove_clock: nextHalfmoveClock,
+    position_history: nextPositionHistory
+  };
 
-  if (isCheckmate(newBoard, nextTurn)) {
+  if (isCheckmateVal) {
     await endGame(gameId, currentGame.current_turn);
     returnedGame.status = 'finished';
     returnedGame.winner = currentGame.current_turn;
-  } else if (isStalemate(newBoard, nextTurn)) {
+  } else if (isStalemateVal || isThreefold || isFiftyMove) {
     await endGame(gameId, null);
     returnedGame.status = 'finished';
     returnedGame.winner = 'draw';

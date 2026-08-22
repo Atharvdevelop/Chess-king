@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BoardState, PieceColor, Position } from '../types/chess';
+import { BoardState, PieceColor, Position, PieceType } from '../types/chess';
 import {
   createInitialBoard,
   makeMove,
@@ -16,26 +16,36 @@ interface OfflineGameViewProps {
 
 export default function OfflineGameView({ onBack }: OfflineGameViewProps) {
   const [boardHistory, setBoardHistory] = useState<BoardState[]>([createInitialBoard()]);
+  const [enPassantHistory, setEnPassantHistory] = useState<(Position | null)[]>([null]);
   const [currentTurn, setCurrentTurn] = useState<PieceColor>('white');
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [flipped, setFlipped] = useState(false);
 
   const currentBoard = boardHistory[boardHistory.length - 1];
+  const currentEnPassant = enPassantHistory[enPassantHistory.length - 1];
 
   // Check state
   const isWhiteCheck = isKingInCheck(currentBoard, 'white');
   const isBlackCheck = isKingInCheck(currentBoard, 'black');
-  const isWhiteMate = isCheckmate(currentBoard, 'white');
-  const isBlackMate = isCheckmate(currentBoard, 'black');
+  const isWhiteMate = isCheckmate(currentBoard, 'white', currentEnPassant);
+  const isBlackMate = isCheckmate(currentBoard, 'black', currentEnPassant);
 
-  const handleMove = (from: Position, to: Position) => {
+  const handleMove = (from: Position, to: Position, promotion: PieceType = 'queen') => {
     if (isWhiteMate || isBlackMate) return;
 
-    const { newBoard } = makeMove(currentBoard, from, to);
-    const notation = `${positionToAlgebraic(from)}-${positionToAlgebraic(to)}`;
+    const { newBoard, newEnPassantTarget, isPromotion } = makeMove(
+      currentBoard, 
+      from, 
+      to, 
+      promotion, 
+      currentEnPassant
+    );
+    const promoSuffix = isPromotion ? `=${promotion[0].toUpperCase()}` : '';
+    const notation = `${positionToAlgebraic(from)}-${positionToAlgebraic(to)}${promoSuffix}`;
     const nextTurn = currentTurn === 'white' ? 'black' : 'white';
 
     setBoardHistory(prev => [...prev, newBoard]);
+    setEnPassantHistory(prev => [...prev, newEnPassantTarget]);
     setMoveHistory(prev => [...prev, notation]);
     setCurrentTurn(nextTurn);
   };
@@ -43,12 +53,14 @@ export default function OfflineGameView({ onBack }: OfflineGameViewProps) {
   const handleUndo = () => {
     if (boardHistory.length <= 1) return;
     setBoardHistory(prev => prev.slice(0, prev.length - 1));
+    setEnPassantHistory(prev => prev.slice(0, prev.length - 1));
     setMoveHistory(prev => prev.slice(0, prev.length - 1));
     setCurrentTurn(prev => (prev === 'white' ? 'black' : 'white'));
   };
 
   const handleReset = () => {
     setBoardHistory([createInitialBoard()]);
+    setEnPassantHistory([null]);
     setMoveHistory([]);
     setCurrentTurn('white');
   };
@@ -124,6 +136,7 @@ export default function OfflineGameView({ onBack }: OfflineGameViewProps) {
               playerColor={flipped ? (currentTurn === 'white' ? 'black' : 'white') : currentTurn}
               onMove={handleMove}
               isActive={!isWhiteMate && !isBlackMate}
+              enPassantTarget={currentEnPassant}
             />
           </div>
 
@@ -142,38 +155,45 @@ export default function OfflineGameView({ onBack }: OfflineGameViewProps) {
             </button>
             <button
               onClick={handleReset}
-              className="flex-1 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 font-bold py-2.5 px-4 rounded-xl transition-all text-xs flex items-center justify-center gap-2 shadow-lg"
+              className="bg-slate-900 hover:bg-rose-950/40 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 border border-slate-800 font-bold py-2.5 px-4 rounded-xl transition-all text-xs flex items-center justify-center gap-2 shadow-lg"
             >
-              <RefreshCw size={14} />
-              Reset Board
+              Reset
             </button>
           </div>
+
         </div>
 
-        {/* Right Sidebar: Move Notation History */}
+        {/* Right: Move History Panel */}
         <div 
-          className="w-full lg:w-[300px] xl:w-[340px] bg-slate-900/60 border border-slate-800 backdrop-blur-md rounded-2xl p-5 shadow-xl flex flex-col h-[260px] lg:h-[min(65vmin,calc(100vh-220px),520px)]"
+          className="w-full lg:w-72 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col shadow-xl backdrop-blur-md"
+          style={{ height: 'min(65vmin, calc(100vh - 220px), 520px)' }}
         >
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex justify-between items-center">
-            <span>Move Notation History</span>
-            <span className="text-[10px] text-slate-500 font-mono">{moveHistory.length} Moves</span>
-          </h3>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
+            <span>Move Notation</span>
+            <span className="text-[10px] font-mono bg-slate-800 px-2 py-0.5 rounded text-slate-400">
+              {moveHistory.length} moves
+            </span>
+          </h2>
 
-          <div className="flex-1 overflow-y-auto bg-slate-950/50 rounded-xl border border-slate-850 p-3 space-y-1.5 custom-scrollbar font-mono text-xs">
+          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
             {moveHistory.length === 0 ? (
-              <p className="text-slate-600 italic text-center py-16 font-sans">No moves made yet.<br />Drag or click a piece to play!</p>
+              <p className="text-slate-600 text-xs py-8 text-center font-mono">No moves played yet.</p>
             ) : (
-              Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, idx) => {
-                const whiteMove = moveHistory[idx * 2];
-                const blackMove = moveHistory[idx * 2 + 1];
-                return (
-                  <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-850/40 px-2 rounded hover:bg-slate-900/40">
-                    <span className="text-slate-500 w-8">{idx + 1}.</span>
-                    <span className="text-violet-300 font-bold flex-1">{whiteMove}</span>
-                    <span className="text-cyan-300 font-bold flex-1 text-right">{blackMove || ''}</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {moveHistory.map((m, idx) => (
+                  <div
+                    key={idx}
+                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-mono flex items-center justify-between ${
+                      idx % 2 === 0
+                        ? 'bg-slate-950/40 border-slate-800 text-slate-300'
+                        : 'bg-slate-900/40 border-slate-800/60 text-slate-400'
+                    }`}
+                  >
+                    <span className="text-[10px] text-slate-500">{Math.floor(idx / 2) + 1}{idx % 2 === 0 ? '.' : '...'}</span>
+                    <span className="font-semibold text-slate-200">{m}</span>
                   </div>
-                );
-              })
+                ))}
+              </div>
             )}
           </div>
         </div>

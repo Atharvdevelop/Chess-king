@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Game, PieceColor, Position, Move } from '../types/chess';
+import { Game, PieceColor, Position, Move, PieceType } from '../types/chess';
 import { createInitialBoard, makeMove, algebraicToPosition } from '../lib/chessLogic';
 import { getGame, makeGameMove, subscribeToGame, getMoves, endGameOnTimeout, endGame } from '../lib/gameService';
 import ChessBoard from './ChessBoard';
@@ -222,12 +222,12 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
     }
   }, [movesData, currentViewIndex]);
 
-  const handleMove = async (from: Position, to: Position) => {
+  const handleMove = async (from: Position, to: Position, promotion?: PieceType) => {
     if (!game || isMoving) return;
     setIsMoving(true);
 
     try {
-      const updatedGame = await makeGameMove(gameId, profileId, from, to, game);
+      const updatedGame = await makeGameMove(gameId, profileId, from, to, game, promotion || 'queen');
 
       // Optimistically apply the returned game JSON block immediately
       setGame((prev) =>
@@ -270,7 +270,10 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
   // Determine game over reason
   const winReason = useMemo(() => {
     if (!game || game.status !== 'finished') return '';
-    if (game.winner === 'draw') return 'Stalemate';
+    if (game.winner === 'draw') {
+      if ((game.halfmove_clock || 0) >= 100) return '50-Move Rule (Draw)';
+      return 'Stalemate / Draw';
+    }
 
     const isTimeout = game.white_time_remaining <= 0 || game.black_time_remaining <= 0;
     if (isTimeout) return 'Timeout';
@@ -393,6 +396,7 @@ export default function GameView({ gameId, profileId, onBackToLobby }: GameViewP
             isActive={game.status === 'active' && currentViewIndex === -1}
             lastMoveFrom={lastMovePositions.from}
             lastMoveTo={lastMovePositions.to}
+            enPassantTarget={game.en_passant_target || null}
           />
           
           {isWaiting && (

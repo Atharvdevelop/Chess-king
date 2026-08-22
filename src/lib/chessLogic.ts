@@ -1,4 +1,4 @@
-import { BoardState, ChessPiece, PieceColor, Position } from '../types/chess';
+import { BoardState, ChessPiece, PieceColor, Position, PieceType } from '../types/chess';
 
 export function positionToKey(pos: Position): string {
   return `${pos.row},${pos.col}`;
@@ -43,29 +43,36 @@ export function getPieceAt(board: BoardState, pos: Position): ChessPiece | null 
 // ---------------------------------------------------------------------------
 // simulateMove
 // ---------------------------------------------------------------------------
-// Creates a scratch copy of the board, applies the move on it (without any
-// side-effects like castling rook moves or promotion), and returns true only
-// if the moving player's King is NOT in check on the resulting board.
-// This is the universal self-check filter used by isValidMove.
 export function simulateMove(
   board: BoardState,
   from: Position,
   to: Position,
-  color: PieceColor
+  color: PieceColor,
+  enPassantTarget?: Position | null
 ): boolean {
-  // Shallow-copy is sufficient: we only write to specific keys.
   const scratch: BoardState = { ...board };
   const piece = scratch[positionToKey(from)];
   scratch[positionToKey(to)] = piece;
   scratch[positionToKey(from)] = null;
+
+  // Handle en-passant simulated removal
+  if (
+    piece &&
+    piece.type === 'pawn' &&
+    enPassantTarget &&
+    to.row === enPassantTarget.row &&
+    to.col === enPassantTarget.col &&
+    Math.abs(to.col - from.col) === 1
+  ) {
+    scratch[positionToKey({ row: from.row, col: to.col })] = null;
+  }
+
   return !isKingInCheck(scratch, color);
 }
 
 // ---------------------------------------------------------------------------
 // isSquareAttackedBy
 // ---------------------------------------------------------------------------
-// Returns true if the given square is reachable by any piece of `attackerColor`
-// using raw movement rules (no self-check filter — that would be recursive).
 function isSquareAttackedBy(
   board: BoardState,
   target: Position,
@@ -76,15 +83,12 @@ function isSquareAttackedBy(
       const pos = { row, col };
       const piece = getPieceAt(board, pos);
       if (!piece || piece.color !== attackerColor) continue;
-      // Use raw movement validators only — NOT isValidMove — to avoid
-      // the simulateMove recursion that would cause infinite loops.
       if (canAttackSquare(board, pos, target, piece)) return true;
     }
   }
   return false;
 }
 
-// Raw attack check (no self-check filter, no turn check).
 function canAttackSquare(
   board: BoardState,
   from: Position,
@@ -92,7 +96,6 @@ function canAttackSquare(
   piece: ChessPiece
 ): boolean {
   const targetPiece = getPieceAt(board, to);
-  // Cannot capture own piece.
   if (targetPiece && targetPiece.color === piece.color) return false;
 
   const dx = to.col - from.col;
@@ -101,7 +104,6 @@ function canAttackSquare(
   switch (piece.type) {
     case 'pawn': {
       const direction = piece.color === 'white' ? -1 : 1;
-      // Pawns attack diagonally only.
       return dy === direction && Math.abs(dx) === 1;
     }
     case 'rook':
@@ -113,7 +115,6 @@ function canAttackSquare(
     case 'queen':
       return isValidQueenMove(board, from, to);
     case 'king':
-      // King attacks adjacent squares only (no castling here).
       return Math.abs(dx) <= 1 && Math.abs(dy) <= 1;
     default:
       return false;
@@ -121,13 +122,14 @@ function canAttackSquare(
 }
 
 // ---------------------------------------------------------------------------
-// isValidMove  (public — includes self-check filter via simulateMove)
+// isValidMove
 // ---------------------------------------------------------------------------
 export function isValidMove(
   board: BoardState,
   from: Position,
   to: Position,
-  currentTurn: PieceColor
+  currentTurn: PieceColor,
+  enPassantTarget?: Position | null
 ): boolean {
   const piece = getPieceAt(board, from);
   if (!piece || piece.color !== currentTurn) return false;
@@ -138,11 +140,10 @@ export function isValidMove(
   const dx = to.col - from.col;
   const dy = to.row - from.row;
 
-  // Check the raw movement rule first.
   let rawOk = false;
   switch (piece.type) {
     case 'pawn':
-      rawOk = isValidPawnMove(board, from, to, piece.color);
+      rawOk = isValidPawnMove(board, from, to, piece.color, enPassantTarget);
       break;
     case 'rook':
       rawOk = isValidRookMove(board, from, to);
@@ -165,34 +166,44 @@ export function isValidMove(
 
   if (!rawOk) return false;
 
-  // Self-check filter: the move is only legal if it does not leave the
-  // moving player's King in check.
-  return simulateMove(board, from, to, piece.color);
+  return simulateMove(board, from, to, piece.color, enPassantTarget);
 }
 
 function isValidPawnMove(
   board: BoardState,
   from: Position,
   to: Position,
-  color: PieceColor
+  color: PieceColor,
+  enPassantTarget?: Position | null
 ): boolean {
   const direction = color === 'white' ? -1 : 1;
   const startRow = color === 'white' ? 6 : 1;
   const dx = to.col - from.col;
   const dy = to.row - from.row;
 
+  // Single step forward
   if (dy === direction && dx === 0) {
     return !getPieceAt(board, to);
   }
 
+  // Double step forward from starting rank
   if (dy === 2 * direction && dx === 0 && from.row === startRow) {
     const middlePos = { row: from.row + direction, col: from.col };
     return !getPieceAt(board, middlePos) && !getPieceAt(board, to);
   }
 
+  // Diagonal capture
   if (dy === direction && Math.abs(dx) === 1) {
     const targetPiece = getPieceAt(board, to);
-    return targetPiece !== null && targetPiece.color !== color;
+    if (targetPiece !== null && targetPiece.color !== color) return true;
+
+    // En Passant capture
+    if (enPassantTarget && to.row === enPassantTarget.row && to.col === enPassantTarget.col) {
+      const adjacentPawn = getPieceAt(board, { row: from.row, col: to.col });
+      if (adjacentPawn && adjacentPawn.type === 'pawn' && adjacentPawn.color !== color) {
+        return true;
+      }
+    }
   }
 
   return false;
@@ -217,8 +228,6 @@ function isValidQueenMove(board: BoardState, from: Position, to: Position): bool
   return isValidRookMove(board, from, to) || isValidBishopMove(board, from, to);
 }
 
-// isValidKingMove — raw movement only (self-check guard is in isValidMove).
-// Destination square safety (attacked-square check) is enforced here.
 function isValidKingMove(
   board: BoardState,
   from: Position,
@@ -230,7 +239,6 @@ function isValidKingMove(
   const enemyColor: PieceColor = color === 'white' ? 'black' : 'white';
 
   if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
-    // King cannot step onto a square attacked by any enemy piece.
     return !isSquareAttackedBy(board, to, enemyColor);
   }
 
@@ -238,7 +246,6 @@ function isValidKingMove(
   if (Math.abs(dx) === 2 && dy === 0) {
     const piece = getPieceAt(board, from);
     if (piece && !piece.hasMoved) {
-      // King must not currently be in check.
       if (isKingInCheck(board, color)) return false;
 
       const isKingside = dx > 0;
@@ -247,11 +254,9 @@ function isValidKingMove(
       const rook = getPieceAt(board, rookPos);
       if (rook && rook.type === 'rook' && rook.color === color && !rook.hasMoved) {
         const step = Math.sign(dx);
-        // Path between king and rook must be clear.
         for (let c = from.col + step; c !== rookCol; c += step) {
           if (getPieceAt(board, { row: from.row, col: c })) return false;
         }
-        // Every square the king crosses must not be attacked.
         for (let c = from.col; c !== to.col + step; c += step) {
           if (isSquareAttackedBy(board, { row: from.row, col: c }, enemyColor)) {
             return false;
@@ -280,30 +285,73 @@ function isPathClear(board: BoardState, from: Position, to: Position): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// makeMove  (includes auto-promotion)
+// isPromotionMove
+// ---------------------------------------------------------------------------
+export function isPromotionMove(board: BoardState, from: Position, to: Position): boolean {
+  const piece = getPieceAt(board, from);
+  if (!piece || piece.type !== 'pawn') return false;
+  return (piece.color === 'white' && to.row === 0) || (piece.color === 'black' && to.row === 7);
+}
+
+// ---------------------------------------------------------------------------
+// makeMove
 // ---------------------------------------------------------------------------
 export function makeMove(
   board: BoardState,
   from: Position,
-  to: Position
-): { newBoard: BoardState; capturedPiece: ChessPiece | null } {
+  to: Position,
+  promotionType: PieceType = 'queen',
+  enPassantTarget?: Position | null
+): { 
+  newBoard: BoardState; 
+  capturedPiece: ChessPiece | null;
+  newEnPassantTarget: Position | null;
+  isEnPassant: boolean;
+  isPromotion: boolean;
+} {
   const newBoard = { ...board };
   const piece = getPieceAt(board, from);
-  const capturedPiece = getPieceAt(board, to);
+  let capturedPiece = getPieceAt(board, to);
+  let newEnPassantTarget: Position | null = null;
+  let isEnPassant = false;
+  let isPromotion = false;
 
   if (piece) {
     let movedPiece: ChessPiece = { ...piece, hasMoved: true };
 
-    // Auto-promotion: pawn reaching the back rank becomes a queen.
+    // 1. Pawn double-step -> sets en passant target
+    if (movedPiece.type === 'pawn' && Math.abs(to.row - from.row) === 2) {
+      const step = (to.row - from.row) / 2;
+      newEnPassantTarget = { row: from.row + step, col: from.col };
+    }
+
+    // 2. En Passant capture execution
+    if (
+      movedPiece.type === 'pawn' &&
+      enPassantTarget &&
+      to.row === enPassantTarget.row &&
+      to.col === enPassantTarget.col &&
+      Math.abs(to.col - from.col) === 1 &&
+      !capturedPiece
+    ) {
+      const capturedPawnPos = { row: from.row, col: to.col };
+      capturedPiece = getPieceAt(board, capturedPawnPos);
+      newBoard[positionToKey(capturedPawnPos)] = null;
+      isEnPassant = true;
+    }
+
+    // 3. Pawn Promotion (Queen, Knight, Rook, Bishop)
     if (movedPiece.type === 'pawn' && (to.row === 0 || to.row === 7)) {
-      movedPiece = { ...movedPiece, type: 'queen' };
+      const validPromo = ['queen', 'knight', 'rook', 'bishop'].includes(promotionType) ? promotionType : 'queen';
+      movedPiece = { ...movedPiece, type: validPromo };
+      isPromotion = true;
     }
 
     newBoard[positionToKey(to)] = movedPiece;
   }
   newBoard[positionToKey(from)] = null;
 
-  // Castling: move the rook to the other side of the king.
+  // 4. Castling: move the rook
   if (piece && piece.type === 'king' && Math.abs(to.col - from.col) === 2) {
     const isKingside = to.col > from.col;
     const rookFromCol = isKingside ? 7 : 0;
@@ -317,7 +365,7 @@ export function makeMove(
     }
   }
 
-  return { newBoard, capturedPiece };
+  return { newBoard, capturedPiece, newEnPassantTarget, isEnPassant, isPromotion };
 }
 
 // ---------------------------------------------------------------------------
@@ -347,9 +395,11 @@ export function isKingInCheck(board: BoardState, kingColor: PieceColor): boolean
 // ---------------------------------------------------------------------------
 // hasLegalMoves
 // ---------------------------------------------------------------------------
-// Returns true if the given color has at least one fully legal move available
-// (i.e. a move that passes isValidMove including the self-check filter).
-export function hasLegalMoves(board: BoardState, color: PieceColor): boolean {
+export function hasLegalMoves(
+  board: BoardState, 
+  color: PieceColor,
+  enPassantTarget?: Position | null
+): boolean {
   for (let fromRow = 0; fromRow < 8; fromRow++) {
     for (let fromCol = 0; fromCol < 8; fromCol++) {
       const from = { row: fromRow, col: fromCol };
@@ -360,7 +410,7 @@ export function hasLegalMoves(board: BoardState, color: PieceColor): boolean {
         for (let toCol = 0; toCol < 8; toCol++) {
           const to = { row: toRow, col: toCol };
           if (fromRow === toRow && fromCol === toCol) continue;
-          if (isValidMove(board, from, to, color)) return true;
+          if (isValidMove(board, from, to, color, enPassantTarget)) return true;
         }
       }
     }
@@ -371,21 +421,71 @@ export function hasLegalMoves(board: BoardState, color: PieceColor): boolean {
 // ---------------------------------------------------------------------------
 // isCheckmate / isStalemate
 // ---------------------------------------------------------------------------
-
-// Checkmate: in check AND no legal moves.
-export function isCheckmate(board: BoardState, color: PieceColor): boolean {
-  return isKingInCheck(board, color) && !hasLegalMoves(board, color);
+export function isCheckmate(
+  board: BoardState, 
+  color: PieceColor,
+  enPassantTarget?: Position | null
+): boolean {
+  return isKingInCheck(board, color) && !hasLegalMoves(board, color, enPassantTarget);
 }
 
-// Stalemate: not in check AND no legal moves.
-export function isStalemate(board: BoardState, color: PieceColor): boolean {
-  return !isKingInCheck(board, color) && !hasLegalMoves(board, color);
+export function isStalemate(
+  board: BoardState, 
+  color: PieceColor,
+  enPassantTarget?: Position | null
+): boolean {
+  return !isKingInCheck(board, color) && !hasLegalMoves(board, color, enPassantTarget);
+}
+
+// ---------------------------------------------------------------------------
+// FEN, Threefold Repetition & 50-Move Rule
+// ---------------------------------------------------------------------------
+export function getBoardFen(board: BoardState, turn: PieceColor, enPassantTarget?: Position | null): string {
+  let fen = '';
+  for (let r = 0; r < 8; r++) {
+    let emptyCount = 0;
+    for (let c = 0; c < 8; c++) {
+      const piece = board[positionToKey({ row: r, col: c })];
+      if (!piece) {
+        emptyCount++;
+      } else {
+        if (emptyCount > 0) {
+          fen += emptyCount;
+          emptyCount = 0;
+        }
+        const letter = piece.type === 'knight' ? 'N' : piece.type[0].toUpperCase();
+        fen += piece.color === 'white' ? letter : letter.toLowerCase();
+      }
+    }
+    if (emptyCount > 0) fen += emptyCount;
+    if (r < 7) fen += '/';
+  }
+  fen += ` ${turn[0]}`;
+  if (enPassantTarget) {
+    fen += ` ${positionToAlgebraic(enPassantTarget)}`;
+  } else {
+    fen += ' -';
+  }
+  return fen;
+}
+
+export function isThreefoldRepetition(positionHistory: string[]): boolean {
+  if (!positionHistory || positionHistory.length < 5) return false;
+  const counts: Record<string, number> = {};
+  for (const pos of positionHistory) {
+    counts[pos] = (counts[pos] || 0) + 1;
+    if (counts[pos] >= 3) return true;
+  }
+  return false;
+}
+
+export function isFiftyMoveRule(halfmoveClock: number): boolean {
+  return halfmoveClock >= 100;
 }
 
 // ---------------------------------------------------------------------------
 // Coordinate helpers
 // ---------------------------------------------------------------------------
-
 export function positionToAlgebraic(pos: Position): string {
   const files = 'abcdefgh';
   return `${files[pos.col]}${8 - pos.row}`;
